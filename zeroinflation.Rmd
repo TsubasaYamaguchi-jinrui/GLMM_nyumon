@@ -1,0 +1,1220 @@
+---
+title: "ゼロ過剰モデル"
+author: "Yamaguchi"
+date: '2022-12-29'
+output:
+  rmdformats::readthedown:
+   df_print: "paged" 
+   number_section: TRUE 
+   toc_depth: 3
+bibliography: reference.bib 
+css: custom_style.css
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      warning = FALSE,
+                      message = FALSE,
+                      cache = TRUE,
+                      fig.align = "center")
+```
+
+# 0 パッケージの読み込み  {-}
+```{r}
+library(tidyverse)
+library(brms)
+library(lme4)
+library(easystats)
+library(ggeffects)
+library(glmmTMB)
+library(statmod)
+library(DHARMa)
+```
+
+# 一般化線形モデル(GLM)における過分散  
+## 二項分布とポワソン分布の特徴  
+GLMでは、応答変数が二項分布やポワソン分布に従うと仮定してモデリングを行うことが多い。まずは、過分散について理解するためにこれらの分布の基本的な情報について確認する。  
+
+### 二項分布  
+二項分布は、「結果が2通り(例えば、成功/失敗)である試行（**ベルヌーイ試行**と呼ばれる）を独立に$n$回行ったときの成功回数の分布を表した確率分布」である。例えば、 コインを10回振ったときに表が出る回数は二項分布に従う。
+
+一方の結果が生じる確率を$p$とするとき、$n$回中$x$回その結果が生じる確率$P(x|n,p)$は以下のように書ける(例. コインの表が出る確率が$p$のとき、$n$回中$x$回表が出る確率)。  
+
+$$
+P(x|n,p) = _n C _x p^x(1-p)^{n-x} \quad (x \geq 0)
+$$
+
+実際に表が出る確率が0.4のコインを10回ふったときの確率分布は以下のようになる。  
+
+```{r, fig.dim = c(4,4), echo = FALSE}
+## xは0から10までとりうる
+x <- seq(0,10,by=1)
+
+## それぞれのxの値を取りうる確率  
+p_x <- dbinom(x, size = 10, prob = 0.4)
+
+## 作図  
+data.frame(x = x,
+           p_x = p_x) %>% 
+  ggplot(aes(x = x, y = p_x))+
+  geom_col()+
+  theme_bw(base_size = 12)+
+  theme(aspect.ratio = 1,
+        axis.title.y = element_text(angle=0,
+                                    vjust = 0.5))+
+  labs(y = "x\n回\n表\nが\n出\nる\n確\n率")
+```
+
+先ほどの式からわかるように、二項分布の形は$p$と$n$にという二つの値によって決まる。このように確率分布を特徴づける値のことを**母数(パラメータ)**という。GLMなどのモデリングでは、分布を決めるために必要なパラメータを実際のデータから推定することが目的になる。例えば、応答変数が二項分布に従うモデルを考える場合、試行数$n$は既知なので、データが得られる確率が最も高くなるように$p$を推定することがゴールとなる。    
+
+さて、二項分布の平均と分散は$p$と$n$によって以下のように定まる。ここで重要なのは、**二項分布は**$n$と$p$**が定まれば平均も分散も決まってしまう**ということである。   
+
+- 平均: $np$  
+- 分散: $np(1-p)$  
+
+### ポワソン分布 {#c1.2.2}
+ポワソン分布は、「ある一定の時間にある事象が発生する回数($x$)を表す確率分布」である。たとえば、1年間に自動車事故が発生する回数はポワソン分布に従うとされます。二項分布と違い、ポワソン分布は回数に上限がないことに注意が必要(事故は何回でも起こりうる)。  
+
+ある事象が一定期間に起きる平均回数を$\lambda$とするとき、その事象が$x$回生じる確率($P(x)$)は以下のようになる(覚える必要はないです)。  
+
+$$
+P(x) = \frac{\lambda^x}{x!}e^{-\lambda} \quad (x \geq 0)
+$$
+
+このように、ポワソン分布はたったひとつのパラメータ$\lambda$によって形が決まる。**ポワソン分布の平均と分散はいずれも**$\lambda$**となる。**  
+
+$\lambda = 5.6$の時のポワソン分布は以下のようになる。  
+```{r, echo = FALSE, fig.dim = c(4,4)}
+## xは0から10までとりうる
+x <- seq(0,15,by=1)
+
+## それぞれのxの値を取りうる確率  
+p_x <- dpois(x, 5.6)
+
+## 作図  
+data.frame(x = x,
+           p_x = p_x) %>% 
+  ggplot(aes(x = x, y = p_x))+
+  geom_col()+
+  theme_bw(base_size = 12)+
+  theme(aspect.ratio = 1,
+        axis.title.y = element_text(angle=0,
+                                    vjust = 0.5))+
+  labs(y = "x\n回\n事\n象\nが\n生\nじ\nる\n確\n率")
+```
+
+
+## 過分散とは  
+以上で見たように、二項分布とポワソン分布では、いずれも**分布の平均を決めるパラメータ(二項分布: **$n$**と**$p$**、ポワソン分布:** $\lambda$)**が決まれば分散も決まってしまう。**      
+
+しかし実際にモデリングを行うとき、推定されたパラメータから期待されるよりも実際のデータの分散が大きくなってしまうことがよく生じる。このような現象を**過分散**という。  
+
+### 過分散の例  
+例えば、ニホンザルにある餌を10回提示したときに食べる回数を調べたとしよう。50個体分のデータを収集した結果、以下のデータが得られたとする(`dat_binom`というデータ)。なお、`n`は餌を提示した回数、`x`はサルが餌を食べた回数を示す。     
+
+```{r, echo = FALSE}
+## 架空データの作成  
+set.seed(123)
+
+N <- 50
+n <- 10
+age <- rpois(N, lambda = 7)
+
+## 平均して確率0.3で餌を食べるとするときの回数x。
+r <- rnorm(N, 0, 2.5)
+
+x <- rep(0,N)
+p <- rep(0,N)
+
+for(i in 1:50){
+  p[i] <- inv_logit_scaled(-0.75 + 0.17*age[i]+ r[i])
+  x[i] <- rbinom(1,n,p[i])
+}
+
+dat_binom <- data.frame(x = x,
+                        n = n)
+```
+
+```{r}
+dat_binom
+```
+<br />  
+
+サルが餌を食べる確率$p$がどれくらいになるか調べるために、サルが餌を食べた回数が二項分布に従うと仮定してGLMによる分析を行うとする。なお、リンク関数はロジット関数とする。      
+
+数式で書くと以下のようになる。GLMでは、パラメータ$\beta$を推定することになる。  
+
+$$
+\begin{aligned}
+logit(p_i) &= log(\frac{p_i}{1-p_i}) = \beta\\
+x_i &\sim Binomial(n_i, p_i)
+\end{aligned}
+$$
+
+
+RでGLMを実行するコードは以下のようになる。  
+```{r}
+r_binom_sample <- glm(data = dat_binom,
+               cbind(x, n-x) ~ 1,
+               family = "binomial")
+```
+
+結果は以下のようになる。推定されたパラメータ$\beta$は`r sprintf("%.3f",coef(r_binom_sample)[[1]])`である。  
+```{r}
+r_binom_sample
+```
+
+このとき、分析結果から推定される$p$は、$log(\frac{p}{1-p}) = e^{0.2982..}$ より(リンク関数はロジット関数なので)、$p =$ 0.574...となる。  
+
+これは実際のデータにおいてサルが餌を食べた平均割合ともほぼ一致する。  
+
+```{r}
+mean(dat_binom$x/dat_binom$n)
+```
+
+もしデータが二項分布に従うならば、その分散は$np(1-p) = 10\times0.574\times0.426 = 2.445..$となるはずだと期待される。しかし、実際のデータの分散はそれよりも大きくなっている。  
+
+```{r}
+sd(dat_binom$x)
+```
+
+GLM(M)において、過分散が生じているかはdispersion parameter ($\phi$)が既定の値(ポワソン分布や二項分布では1)よりも大きいかで調べられる。  
+
+dispersion parameter ($\phi$)は以下の式で算出される。  
+なお、$y_i$は応答変数の値、$\mu_i$はモデルから推定されたi番目の期待値(平均値)、$\sigma_i$はモデルから推定されたi番目の分散を表す。また、残差自由度は全自由度(データ数)からモデルで推定されたパラメータ数(今回は$\lambda$の1つ)を引いたものである(つまり、今回は199)。    
+
+$$
+
+\begin{aligned}
+
+\phi &= \frac{ピアソン残差^2}{残差自由度}\\
+
+     &= \frac{y_i-\mu_i/ 
+     \sigma_i}{残差自由度}
+
+\end{aligned}
+
+$$
+
+Rでは以下のように求められる。  
+**値が1を大きく超えており、過分散が生じていることが分かる**。
+```{r}
+sum(residuals(r_binom_sample,type = "pearson")^2)/r_binom_sample$df.residual
+```
+
+また、過分散が生じているかは、推定したパラメータを持つ分布からデータをシミュレートし、それを実際のデータと比較することで検定することもできる。詳しい方法については、[このサイト](https://cran.r-project.org/web/packages/DHARMa/vignettes/DHARMa.html#binomial-data)を参照。  
+
+検定の結果、有意な過分散が検出された。    
+```{r,fig.dim = c(4,4.5)}
+testDispersion(r_binom_sample)
+```
+
+
+このようなとき、**このモデルには過分散が生じている**という。  
+
+### 過分散の問題点  
+過分散が生じているということは、推定値のばらつきが過小評価されており、データがモデルにうまく適合していないことを示す[@Rhodes2015; @Harrison2018]。  
+
+これによって生じる大きな問題は、統計検定において**第一種の過誤(帰無仮説が正しいにもかかわらず誤って棄却してしまうこと)が生じる確率が高まってしまう**ということである[@Rhodes2015; @Harrison2018]。そのため、疑似尤度を用いる、ランダム効果を用いるなどの方法を用いて対処しなければならない。  
+
+### 過分散が生じる要因とゼロ過剰  
+過分散が生じる要因としては、空間的・時間的相関があることでデータに偏りが生じること、データが独立でないこと(cf. 疑似反復)、データ間のばらつきが大きいことなどがある。  
+
+本稿で着目するのは、これら以外の要因、すなわちモデルから想定されるよりもゼロが多くなってしまう場合(**ゼロ過剰**)についてである。以下ではゼロ過剰が生じているデータについて見たうえで、その対処法についてまとめる。  
+
+# ゼロ過剰ポワソンモデルとは  
+以下では、応答変数がポワソン分布に従うと仮定したときにゼロ過剰が生じる場合について見ていく。  
+
+## ポワソン回帰でゼロ過剰が生じる例  
+例えば、森の中である一定距離歩いたときに見つかるニホンザルの数のデータを収集したところ、以下のデータ(`d_zipois`)が得られたとする。なお、`num_obs`は観察したサルの数を、`temp`はその日の気温を表す。  
+
+```{r, echo = FALSE}
+set.seed(1234)
+N <- 200
+temp <- rnorm(N, 10, 1.5)
+
+p_zi <- exp((7 - 0.8*temp))/(1 + exp((7 - 0.8*temp)))
+
+num_obs <- rep(0,N)
+
+for(i in 1:N){
+  num_obs[i] <- rbinom(1,1,1-p_zi[i])*rpois(1, lambda = exp(0.02 + 0.13*temp[i]))
+}
+
+dat_zipois <- data.frame(temp = temp,
+           num_obs = num_obs)
+```
+
+```{r}
+dat_zipois
+```
+<br/>  
+
+気温と観察されたサルの数の関係を調べたところ、以下のようになった。天気が高くなるほど、観察されるサルの数が多くなるように見える。
+```{r, fig.dim = c(4.5,3.5)}
+dat_zipois %>% 
+  ggplot(aes(x = temp, y = num_obs))+
+  geom_point(size = 3.5, alpha = 0.6)+
+  theme_bw(base_size = 12)+
+  theme(aspect.ratio=0.8)
+```
+
+そこで、以下のようなGLMを考え、気温が観察されるサルの数に与える影響を調べるとする。  
+
+- 分布: ポワソン分布  
+- リンク関数: log関数  
+- 応答変数: 観察されたサルの数(`num_obs`)  
+- 説明変数: 気温(`temp`)  
+
+
+数式で表すと以下のようになる。ただし、$i$は各データポイントのIDを示す。例えば、$temp_i$は、$i$番目のデータの気温を表す。ただし、$i = 1,2,3,...,200$である。また、$num\_obs_i \sim Poisson(\lambda_i)$は、i番目のデータが平均$\lambda_i$のポワソン分布に従って得られるということである。  
+
+$$
+\begin{aligned}
+log(\lambda_i) &= \beta_0 + \beta_1 \times temp_i\\
+num\_obs_i &\sim Poisson(\lambda_i)
+\end{aligned}
+$$
+ 
+
+RでのGLMのコードは以下のようになる。  
+```{r}
+r_pois <- glm(data = dat_zipois,
+              num_obs ~ temp,
+              family = poisson(link=log))
+```
+
+結果は以下のようになり、$\beta_0$の推定値は`r sprintf("%.3f",coef(r_pois)[[1]])`、$\beta_1$の推定値は`r sprintf("%.3f",coef(r_pois)[[2]])`である。  
+
+```{r}
+summary(r_pois)
+```
+
+つまり、観察されるサルの数は$\lambda = e^{-2.385 + 0.328 \times temp_i}$を平均とするポワソン分布から得られると推定された。  
+
+そこで、推定したパラメータを持つモデルの下で得られるデータをシミュレートし(`num_obs_sim`)、それを実際に得られたデータと比較してみる。  
+
+
+下の図からわかるように、実際に得られたデータ(`num_obs`)では、**推定されたモデルからシミュレートされたデータ**(`num_obs_sim`)**よりかなり0が多い**ことが分かる。このようなとき、**ゼロ過剰が生じている**という。    
+
+```{r, fig.dim = c(7,4.5)}
+## モデルの下で得られるデータをシミュレート  
+
+num_obs_sim <- rpois(N,
+                     lambda = exp(coef(r_pois)[[1]])+coef(r_pois)[[2]]*dat_zipois$temp)
+
+## 実際のデータと比較  
+data.frame(num_obs = num_obs,
+           num_obs_sim = num_obs_sim) %>%
+  pivot_longer(cols = 1:2) %>% 
+  ggplot(aes(x = value))+
+  geom_histogram(aes(fill = name),
+                 position = "dodge", alpha = 0.8,
+                 breaks = seq(0,15,1))+
+  theme_bw(base_size = 13)+
+  theme(aspect.ratio=0.8,
+        axis.title.y = element_text(angle=0,vjust=0.5))+
+  labs(x = "サルが観察された回数",
+       y = "度\n数") -> p_pois_hist
+
+p_pois_hist
+```
+
+実際のデータに含まれる0の数と、モデルが正しいと仮定したときにシミュレーションで生成したデータに含まれる0の数を比較することで、ゼロ過剰が生じているかを検定することができる(詳細は[こちら](https://cran.r-project.org/web/packages/DHARMa/vignettes/DHARMa.html#formal-tests-for-zero-inflation))。検定の結果、ゼロ過剰が検出された。  
+```{r, fig.dim = c(4.5,4)}
+testZeroInflation(r_pois)
+```
+
+Dispersion parameterを算出すると値が1を大きく超えており、過分散が生じていることが分かる。ゼロ過剰であることが原因だろう。  
+```{r}
+sum(residuals(r_pois,type = "pearson")^2)/r_pois$df.residual
+```
+
+過分散の検定をしても過分散が検出される。
+```{r, fig.dim = c(4.5,4)}
+resid_pois <-simulateResiduals(r_pois)
+
+testDispersion(resid_pois)
+```
+
+Quantile residual(詳細は[こちら](https://cran.r-project.org/web/packages/DHARMa/vignettes/DHARMa.html#binomial-data))についてQQplotを描画しても、データがモデルで仮定された分布と合致していないことが分かる。  
+```{r, fig.dim = c(4.5,4)}
+plotQQunif(resid_pois)
+```
+
+このモデルの推定結果に基づく回帰曲線は以下のようになる。  
+```{r, fig.dim = c(4.5,4)}
+fit_pois <- ggpredict(r_pois,
+          ## 温度は5~15で0.1刻み
+          terms = "temp[5:15,by=0.1]",
+          ## ここを変える
+          type ="fixed")
+
+ggplot(dat_zipois)+
+  geom_point(aes(x = temp, y = num_obs),
+             size = 3.5, alpha = 0.6)+
+  ### 回帰曲線
+  geom_line(data = fit_pois,
+            aes(x=x, y = predicted))+
+  ## 95%信頼区間
+  geom_ribbon(data = fit_pois,
+            aes(x=x, y = predicted,
+                ymin = conf.low, ymax = conf.high),
+            alpha = 0.5)+
+   theme_bw(base_size = 18)+
+  theme(aspect.ratio=0.8,
+        plot.title = (element_text(size = 17)))+
+  labs(title = "普通のポワソン回帰")-> p_pois
+
+p_pois
+```
+
+
+## 対処法: ゼロ過剰ポワソンモデル  
+こうしたゼロ過剰のデータに対する対処法の1つがゼロ過剰を仮定したモデル(**ゼロ過剰ポワソンモデル**)を用いることである。ゼロ過剰ポワソンモデルでは、以下のような2段階の過程で$i$番目のデータ($y_i$)が得られると仮定する。  
+
+➀ 確率$q_i$でデータが必ず0になる。  
+➁ $1-q_i$の確率で、データ$y_i$が平均$\lambda_i$のポワソン分布にしたがって得られる。  
+
+つまり、**ゼロ過剰モデルは2種類のプロセスから得られた0が存在することを仮定**する。すなわち、ある確率$q_i$で必ず0が得られるとき(1)と、$1-q_i$の確率でデータがポワソン分布に従う場合に0が得られるとき(2)である。  
+
+```{r, echo=FALSE, fig.dim = c(12,8), fig.cap="ゼロ過剰ポワソンモデルでデータが得られる過程"}
+
+knitr::include_graphics("image/zipois_process.png")
+```
+
+
+このようなプロセスで得られていると考えられるデータとしては、以下のような例が挙げられる。  
+
+**例1. 各選手の盗塁成功数**    
+盗塁数が0の選手の中には、そもそも盗塁しようとしない人と、盗塁しようとした結果失敗した人が含まれる。  
+
+**例2. 動物のセンサスデータ**  
+0のデータの中には、本当にセンサス中にその動物がいなかった場合と、動物がいたにもかかわらず観察者が何らかの要因(人間の観察能力の限界や観察環境など)によって見つけられなかった場合が含まれる。  以下にそのような場合が考えられる例を挙げる。  
+
+
+ゼロ過剰ポワソンモデルにおいて、0が得られる確率は以下のようになる(1.2.2も参照)。 
+
+$$
+q_i + (1-q_i)\times\frac{\lambda_i^0}{0!} e^{-\lambda_i} \\
+= q_i + (1-q_i)\times e^{-\lambda_i}
+$$
+
+0以外の値$y$が得られる確率は以下のようになる。  
+$$
+(1-q_i)\times \frac{\lambda^y}{y!}e^{-\lambda} \;\; (ただし、y>0)
+$$
+
+
+## ゼロ過剰ポワソンモデルの分析例  
+それでは、先ほどのデータをゼロ過剰ポワソンモデルに当てはめよう。データが以下の式に従って得られると仮定する。このモデルでは、$q_i$も気温によって変化すると仮定する(気温によらないとモデリングすることもできる)。なお、$num\_obs_i \sim ZIPoisson(\lambda_i)$はサルの観察回数がゼロ過剰ポワソンモデルに従って得られることを示す。  
+$$
+
+\begin{aligned}
+logit(q_i) &= log(\frac{q_i}{1-q_i}) = \beta_{10} + \beta_{11} \times temp_i\\
+
+log(\lambda_i) &= \beta_{20} + \beta_{21}\times temp_i\\
+
+num\_obs_i &\sim ZIPoisson(q_i, \lambda_i)
+\end{aligned}
+
+$$
+
+Rでは`glmmTMB`パッケージを用いて以下のようにパラメータを推定できる。$q_i$が気温によらないと仮定する場合は、`ziformula ~ 1`とする。  
+
+```{r}
+r_zipois <- glmmTMB(data = dat_zipois,
+                    num_obs ~ temp,
+          ## 気温によらない場合は ziformula ~ 1
+                    ziformula = ~temp,
+                    family = "poisson")
+```
+
+モデルで推定されたパラメータは以下のようになる。
+
+`Zero-inflation model:`というところにある推定結果が$q_i$に関するパラメータの推定値であり、$\beta_{10}$と$\beta_{11}$の推定値はそれぞれ`r sprintf("%.3f",glmmTMB::fixef(r_zipois)[[2]][[1]])`、`r sprintf("%.3f",glmmTMB::fixef(r_zipois)[[2]][[2]])`となる。  
+
+`Conditional model:`というところにある推定結果が$\lambda_i$に関するパラメータの推定値であり、$\beta_{20}$と$\beta_{21}$の推定値はそれぞれ`r sprintf("%.3f",glmmTMB::fixef(r_zipois)[[1]][[1]])`、`r sprintf("%.3f",glmmTMB::fixef(r_zipois)[[1]][[2]])`となる。  
+
+```{r}
+summary(r_zipois)
+```
+
+推定したパラメータを持つゼロ過剰ポワソンモデルの下で得られるデータをシミュレートし(`num_obs_zisim`)、それを実際に得られたデータと比較してみる。  
+
+```{r}
+## 推定されたパラメータからデータをシミュレート
+q <- 1/(1 +exp(-(fixef(r_zipois)[[2]][[1]] + fixef(r_zipois)[[2]][[2]]*dat_zipois$temp)))
+
+lambda <- exp((fixef(r_zipois)[[1]][[1]] + fixef(r_zipois)[[1]][[2]]*dat_zipois$temp))
+
+num_obs_zisim <- rbinom(N,1,1-q)*rpois(N, lambda)
+```
+
+下の図からわかるように、推定されたモデルからシミュレートされたデータ(`num_obs_zisim`)の分布は、実際のデータとかなりよくマッチしていることが分かる。   
+
+```{r, fig.dim = c(7,4.5)}
+## 実際のデータと比較  
+data.frame(num_obs = dat_zipois$num_obs,
+           num_obs_zisim = num_obs_zisim) %>%
+  pivot_longer(cols = 1:2) %>% 
+  ggplot(aes(x = value))+
+  geom_histogram(aes(fill = name),
+                 position = "dodge", alpha = 0.8,
+                 breaks = seq(0,15,1))+
+  theme_bw(base_size = 13)+
+  theme(aspect.ratio=0.8,
+        axis.title.y = element_text(angle=0,vjust=0.5))+
+  labs(x = "サルが観察された回数",
+       y = "度\n数") -> p_zipois_hist
+
+p_zipois_hist
+```
+
+これは、普通のポワソンモデルの結果と比較すると明白である。なお、`num_obs_sim`は普通のポワソン分布を仮定したGLMで推定されたパラメータからシミュレートされたデータである。  
+
+```{r, echo = FALSE, fig.dim = c(7,4.5)}
+data.frame(num_obs = num_obs,
+           num_obs_zisim = num_obs_zisim,
+           num_obs_sim = num_obs_sim) %>%    pivot_longer(cols = 1:3) %>% 
+  mutate(name = fct_relevel(name,"num_obs","num_obs_zisim")) %>% 
+  ggplot(aes(x = value))+
+  geom_histogram(aes(fill = name),
+                 position = "dodge", alpha = 0.8,
+                 breaks = seq(0,15,1))+
+  theme_bw(base_size = 13)+
+  theme(aspect.ratio=0.8,
+        axis.title.y = element_text(angle=0,vjust=0.5))+
+  labs(x = "サルが観察された回数",
+       y = "度\n数") 
+```
+
+検定をしても、ゼロ過剰は検出されない。
+```{r, fig.dim = c(4.5,4)}
+testZeroInflation(r_zipois)
+```
+
+過分散も解消されたことが分かる。  
+```{r, fig.dim = c(4.5,4)}
+resid_zipois <-simulateResiduals(r_zipois)
+
+testDispersion(resid_zipois)
+```
+
+QQplotをみても、データがモデルが仮定する分布によく合致している。  
+```{r, fig.dim = c(4.5,4)}
+plotQQunif(resid_zipois)
+```
+
+推定されたモデルに基づく回帰曲線を描画する。  
+確率$q_i$で得られた0を含まないものと、含むものを両方描ける。詳細は[こちら](https://strengejacke.github.io/ggeffects/articles/introduction_randomeffects.html)。    
+
+$q_i$で得られた0を**含まない**場合  
+```{r}
+fit_zipois_a <- ggpredict(r_zipois,
+          ## 温度は5~15で0.1刻み
+          terms = "temp[5:15,by=0.1]",
+          type ="fixed")
+
+ggplot(dat_zipois)+
+  geom_point(aes(x = temp, y = num_obs),
+             size = 3.5, alpha = 0.6)+
+  ### 回帰曲線
+  geom_line(data = fit_zipois_a,
+            aes(x=x, y = predicted))+
+  ## 95%信頼区間
+  geom_ribbon(data = fit_zipois_a,
+            aes(x=x, y = predicted,
+                ymin = conf.low, ymax = conf.high),
+            alpha = 0.5)+
+   theme_bw(base_size = 18)+
+  theme(aspect.ratio=0.8,
+        plot.title=element_text(size = 17))+
+  labs(title = "ゼロ過剰ポワソンモデル\n(qによる0含まず)")-> p_zipois_a
+```
+
+$q_i$で得られた0を**含む**場合  
+```{r}
+fit_zipois_b <- ggpredict(r_zipois,
+          ## 温度は5~15で0.1刻み
+          terms = "temp[5:15,by=0.1]",
+          ## ここを変える
+          type ="zero_inflated")
+
+ggplot(dat_zipois)+
+  geom_point(aes(x = temp, y = num_obs),
+             size = 3.5, alpha = 0.6)+
+  ### 回帰曲線
+  geom_line(data = fit_zipois_b,
+            aes(x=x, y = predicted))+
+  ## 95%信頼区間
+  geom_ribbon(data = fit_zipois_b,
+            aes(x=x, y = predicted,
+                ymin = conf.low, ymax = conf.high),
+            alpha = 0.5)+
+   theme_bw(base_size = 18)+
+  theme(aspect.ratio=0.8,
+        plot.title=element_text(size = 17))+
+  labs(title = "ゼロ過剰ポワソンモデル\n(qによる0含む)") -> p_zipois_b
+```
+
+比較のため、普通のポワソン回帰による回帰曲線も併置する。  
+```{r, fig.dim = c(13,13)}
+library(patchwork)
+
+p_pois + p_zipois_a + p_zipois_b + plot_layout(ncol = 2)
+```
+
+
+# ゼロ過剰二項モデルとは  
+以下では、同様に応答変数が二項分布に従うと仮定したときにゼロ過剰が生じる場合について見ていく。  
+
+## ロジスティック回帰でゼロ過剰が生じる例  
+ニホンザルのメスが群れ外オスから攻撃された直後に怪我が確認されるか否かを調べた結果、以下のデータ(`dat_zibinom`)が得られたとする。なお、`sum`は攻撃された回数を、`num_inj`は攻撃の直後に怪我が確認された回数を、`age`はメスの年齢を表す。        
+
+```{r, echo = FALSE}
+set.seed(1234)
+N <- 200
+age <- rnorm(N, 15, 3.5)
+sum <- rpois(N,100)
+
+p <- exp((0.8 - 0.08*age))/(1 + exp((0.8 - 0.08*age)))
+
+num_inj <- rep(0,N)
+
+for(i in 1:N){
+  num_inj[i] <- rbinom(1,1,1-p[i])*rbinom(1, sum[i], exp(-5.5 + 0.12*age[i])/(1 + exp(-5.5 + 0.12*age[i])))
+}
+
+dat_zibinom <- data.frame(age = age,
+           num_inj = num_inj,
+           sum = sum)
+```
+
+```{r}
+dat_zibinom
+```
+<br/>  
+
+サルの年齢(`age`)と攻撃の直後に怪我が確認された割合(`num_inj`/`sum`)をプロットしたところ、以下のようになった。年齢が高くなるほど、怪我が確認された割合が多くなるように見える。  
+
+```{r, fig.dim = c(4.5,3.5)}
+dat_zibinom %>% 
+  ggplot(aes(x = age, y = num_inj/sum))+
+  geom_point(size = 3.5, alpha = 0.6)+
+  theme_bw(base_size = 12)+
+  theme(aspect.ratio= 0.8,
+        axis.title.y = element_text(angle=0,
+                                    vjust=0.5,
+                                    size = 10))+
+  coord_cartesian(ylim = c(0,0.122))+
+  scale_y_continuous(breaks = seq(0,0.15,0.02))+
+  labs(y = "怪\n我\nが\n確\n認\nさ\nれ\nた\n割\n合")
+```
+
+そこで、以下のようなGLMを考え、年齢が怪我が確認された割合に影響するかを調べる。  
+
+- 分布: 二項分布  
+- リンク関数: logit関数  
+- 応答変数: 怪我が確認された割合(`num_inj`/`sum`)  
+- 説明変数: 年齢(`age`)  
+
+
+数式で表すと以下のようになる。ただし、$i$は各データポイントのIDを示す。例えば、$age_i$は、$i$番目の個体の年齢を表す。ただし、$i = 1,2,3,...,200$である。      
+
+なお、$num\_inj_i \sim Binomial(sum_i,p_i)$は、i番目の個体に怪我が確認された回数が試行数$sum_i$、確率($p_i$)の二項分布に従って得られるということを示す。  
+
+$$
+\begin{aligned}
+logit(p_i) &= log(\frac{p_i}{1-p_i}) = \beta_0 + \beta_{2} \times age_i\\
+num\_inj_i &\sim Binomial(trials_i, p_i)
+\end{aligned}
+$$
+ 
+
+RでのGLMのコードは以下のようになる。  
+```{r}
+r_binom <- glm(data = dat_zibinom,
+              cbind(num_inj, sum-num_inj) ~ age,
+              family = binomial(link=logit))
+```
+
+結果は以下のようになり、$\beta_0$の推定値は`r sprintf("%.3f",coef(r_binom)[[1]])`、$\beta_1$の推定値は`r sprintf("%.3f",coef(r_binom)[[2]])`である。  
+
+```{r}
+summary(r_binom)
+```
+
+つまり、怪我が確認される回数は試行数$sum_i$、$p_i = \frac{1}{1 + -e^{-6,045 + 0.128 \times age_i}}$となる二項分布から得られると推定される($log(\frac{p_i}{1-p_i}) = \beta_0 + \beta_{2} \times age_i$より)。  
+
+そこで、推定したパラメータを持つモデルの下で得られるデータをシミュレートし(`num_inj_sim`)、それを実際に得られたデータと比較してみる。  
+
+下の図からわかるように、実際に得られたデータから算出された怪我が観察された割合(`prop_inj`)では、**推定されたモデルからシミュレートされたデータ**(`prop_inj_sim`)**より0が多い**(= ゼロ過剰が生じている)。<u>怪我がをしていても体毛に隠れていて気づかない場合があったなど、0が増えてしまう何らかのメカニズムがあったと推測される</u>。    
+
+```{r, fig.dim = c(7,4.5)}
+## モデルの下で得られるデータをシミュレート  
+p <- 1/(1 +exp(-(coef(r_binom)[[1]] + coef(r_binom)[[2]]*dat_zibinom$age)))
+
+num_inj_sim <- rbinom(N, dat_zibinom$sum, p)
+prop_inj_sim <- num_inj_sim/dat_zibinom$sum
+
+## 実際のデータと比較  
+data.frame(prop_inj = num_inj/dat_zibinom$sum,
+           prop_inj_sim = prop_inj_sim) %>%
+  pivot_longer(cols = 1:2) %>% 
+  ggplot(aes(x = value))+
+  geom_histogram(aes(fill = name),
+                 position = "dodge", alpha = 0.8,
+                 breaks = seq(0,0.2,by=0.01))+
+  theme_bw(base_size = 13)+
+  theme(aspect.ratio=0.8,
+        axis.title.y = element_text(angle=0,vjust=0.5))+
+  labs(x = "怪我が確認された割合",
+       y = "度\n数")+
+  coord_cartesian(xlim = c(0,0.13))-> p_binom_hist
+
+p_binom_hist
+```
+
+検定をすると、ゼロ過剰が検出される。
+```{r, fig.dim = c(4.5,4)}
+testZeroInflation(r_binom)
+```
+
+dispersion parameterを算出すると、二項分布での規定値(= 1)を越えており、過分散が生じていることが分かる。おそらくゼロ過剰が原因だろう。      
+```{r}
+sum(residuals(r_binom,type = "pearson")^2)/r_binom$df.residual
+```
+
+検定を行っても過分散が検出された。
+```{r, fig.dim = c(4.5,4)}
+resid_binom <-simulateResiduals(r_binom)
+
+testDispersion(resid_binom)
+```
+
+QQplotをみても、データがモデルによく当てはまっていないことが分かる。  
+```{r, fig.dim = c(4.5,4)}
+plotQQunif(resid_binom)
+```
+
+このモデルの推定結果に基づく回帰曲線は以下のようになる。  
+```{r, fig.dim = c(4.5,4)}
+fit_binom <- ggpredict(r_binom,
+          ## 温度は5~15で0.1刻み
+          terms = "age[5:26,by=0.1]",
+          ## ここを変える
+          type ="fixed")
+
+ggplot(dat_zibinom)+
+  geom_point(aes(x = age, y = num_inj/sum),
+             size = 3.5, alpha = 0.6)+
+  ### 回帰曲線
+  geom_line(data = fit_binom,
+            aes(x=x, y = predicted))+
+  ## 95%信頼区間
+  geom_ribbon(data = fit_binom,
+            aes(x=x, y = predicted,
+                ymin = conf.low, ymax = conf.high),
+            alpha = 0.5)+
+   theme_bw(base_size = 18)+
+  theme(aspect.ratio= 0.8,
+        axis.title.y = element_text(angle=0,
+                                    vjust=0.5,
+                                    size =10),
+        plot.title=element_text(size = 17))+
+  coord_cartesian(ylim = c(0,0.122))+
+  scale_y_continuous(breaks = seq(0,0.15,0.02))+
+  labs(title = "普通の二項分布モデル",
+       y = "怪\n我\nが\n確\n認\nさ\nれ\nた\n割\n合")-> p_binom
+
+p_binom
+```
+
+## 対処法: ゼロ過剰二項モデル  
+こうしたゼロ過剰のデータに対する対処法の1つが、ポワソン分布の場合と同様に、ゼロ過剰を仮定したモデル(**ゼロ過剰二項モデル**)を用いることである。ゼロ過剰二項モデルでも、ゼロ過剰ポワソンモデルのように2段階の過程で$i$番目のデータ($y_i$)が得られると仮定する。  
+
+➀ 確率$q_i$でデータが必ず0になる。  
+➁ $1-q_i$の確率で、データ$y_i$が確率$p_i$、試行数$n_i$の二項分布に従って得られる。  
+
+すなわち、**ゼロ過剰モデルは2種類のプロセスから得られた0が存在することを仮定**する。すなわち、ある確率$q_i$で必ず0が得られるとき(1)と、$1-q_i$の確率でデータが二項分布に従う場合に0が得られるとき(2)である。  
+
+```{r, echo=FALSE, fig.dim = c(12,8), fig.cap="ゼロ過剰二項モデルでデータが得られる過程"}
+
+knitr::include_graphics("image/zibinom_process.png")
+```
+
+
+
+ゼロ過剰二項分布において、0が得られる確率は以下のようになる。  
+
+$$
+q_i + (1-q_i)\times _n C _0 p_i^0(1-p_i)^{n_i-0} \\
+= q_i + (1-q_i)\times (1-p_i)^{n_i}
+$$
+
+一方で、0以外が得られる確率は以下のようになる。  
+$$
+(1-q_i)\times _n C _0 p_i^x(1-p_i)^{n_i-x} \; (x>0)
+$$
+
+## ゼロ過剰二項モデルの分析例1(GLMの場合)    
+それでは、先ほどのデータをゼロ過剰二項モデルに当てはめよう。データが以下の式に従って得られると仮定する。モデルでは、$q_i$も年齢によって変化すると仮定する(年齢によらないと仮定することもできる)。なお、$num\_inj_i \sim ZIBinomial(p_i)$は怪我が確認された回数がゼロ過剰二項モデルに従って得られることを示す。  
+
+$$
+\begin{aligned}
+logit(q_i) &= log(\frac{q_i}{1-q_i}) = \beta_{10} + \beta_{11} \times age_i\\
+
+logit(p_i) &= log(\frac{p_i}{1-p_i}) = \beta_{20} + \beta_{21} \times age_i\\
+
+num\_inj_i &\sim ZIBinomial(q_i, trials_i, p_i)
+\end{aligned}
+$$
+
+Rでは`glmmTMB`パッケージを用いて以下のようにパラメータを推定できる。$q_i$が年齢によらないと仮定する場合は、`ziformula ~ 1`とする。    
+
+```{r}
+r_zibinom <- glmmTMB(data = dat_zibinom,
+                    cbind(num_inj, sum - num_inj) ~ age,
+        ## 年齢によらないとする場合はziformula~1
+                    ziformula = ~age,
+                    family = "binomial")
+```
+
+モデルで推定されたパラメータは以下のようになる。
+
+`Zero-inflation model:`というところにある推定結果が$q_i$に関するパラメータの推定値であり、$\beta_{10}$と$\beta_{11}$の推定値はそれぞれ`r sprintf("%.3f",glmmTMB::fixef(r_zibinom)[[2]][[1]])`、`r sprintf("%.3f",glmmTMB::fixef(r_zibinom)[[2]][[2]])`となる。  
+
+`Conditional model:`というところにある推定結果が$p_i$に関するパラメータの推定値であり、$\beta_{20}$と$\beta_{21}$の推定値はそれぞれ`r sprintf("%.3f",glmmTMB::fixef(r_zibinom)[[1]][[1]])`、`r sprintf("%.3f",glmmTMB::fixef(r_zibinom)[[1]][[2]])`となる。  
+
+```{r}
+summary(r_zibinom)
+```
+
+推定されたたパラメータを持つゼロ過剰二項モデルの下で得られるデータをシミュレートし(`num_inj_zisim`)、それを実際に得られたデータと比較してみる。  
+
+```{r}
+## 推定されたパラメータからデータをシミュレート
+q <- 1/(1 +exp(-(fixef(r_zibinom)[[2]][[1]] + fixef(r_zibinom)[[2]][[2]]*dat_zibinom$age)))
+
+p <- 1/(1 +exp(-(fixef(r_zibinom)[[1]][[1]] + fixef(r_zibinom)[[1]][[2]]*dat_zibinom$age)))
+
+num_inj_zisim <- rbinom(N,1,1-q)*rbinom(N,dat_zibinom$sum, p)
+
+prop_inj_zisim <- num_inj_zisim/dat_zibinom$sum
+```
+
+下の図からわかるように、ゼロ過剰二項モデルからシミュレートされたデータから算出した怪我が観察された割合(`prop_inj_zisim`)の分布は、さきほどよりも実際のデータにマッチしていることが分かる。   
+
+```{r, fig.dim = c(7,4.5)}
+## 実際のデータと比較  
+  data.frame(prop_inj = dat_zibinom$num_inj/dat_zibinom$sum,
+           prop_inj_zisim = prop_inj_zisim) %>%
+  pivot_longer(cols = 1:2) %>% 
+  ggplot(aes(x = value))+
+  geom_histogram(aes(fill = name),
+                 position = "dodge", alpha = 0.8,
+                 breaks = seq(0,0.13,0.01))+
+  theme_bw(base_size = 13)+
+  theme(aspect.ratio=0.8,
+        axis.title.y = element_text(angle=0,vjust=0.5))+
+  labs(x = "怪我が確認された割合",
+       y = "度\n数") -> p_zibinom_hist
+
+p_zibinom_hist
+```
+
+これは、普通の二項分布モデルの結果(`prop_inj_sim`)と比較すると明白である。
+
+```{r, echo = FALSE, fig.dim = c(7,4.5)}
+data.frame(prop_inj = dat_zibinom$num_inj/dat_zibinom$sum,
+           prop_inj_zisim = prop_inj_zisim,
+           prop_inj_sim = prop_inj_sim) %>%    pivot_longer(cols = 1:3) %>% 
+  mutate(name = fct_relevel(name,"prop_inj","prop_inj_zisim")) %>% 
+  ggplot(aes(x = value))+
+  geom_histogram(aes(fill = name),
+                 position = "dodge", alpha = 0.8,
+                 breaks = seq(0,0.13,0.01))+
+  theme_bw(base_size = 13)+
+  theme(aspect.ratio=0.8,
+        axis.title.y = element_text(angle=0,vjust=0.5))+
+  labs(x = "怪我が確認された割合",
+       y = "度\n数") 
+```
+
+検定をしても、ゼロ過剰は検出されない。
+```{r, fig.dim = c(4.5,4)}
+testZeroInflation(r_zibinom)
+```
+
+検定を行っても過分散は検出されない。
+```{r, fig.dim = c(4.5,4)}
+resid_zibinom <-simulateResiduals(r_zibinom)
+
+testDispersion(resid_zibinom)
+```
+
+QQplotをみても、データがモデルによく当てはまっていることが分かる。  
+```{r, fig.dim = c(4.5,4)}
+plotQQunif(resid_zibinom)
+```
+
+推定されたモデルに基づく回帰曲線を描画する。  
+確率$q_i$で得られた0を含まないものと、含むものを両方描ける。  
+
+$q_i$で得られた0を**含まない**場合  
+```{r}
+fit_zibinom_a <- ggpredict(r_zibinom,
+          ## 温度は5~15で0.1刻み
+          terms = "age[5:26,by=0.1]",
+          type ="fixed")
+
+ggplot(dat_zibinom)+
+  geom_point(aes(x = age, y = num_inj/sum),
+             size = 3.5, alpha = 0.6)+
+  ### 回帰曲線
+  geom_line(data = fit_zibinom_a,
+            aes(x=x, y = predicted))+
+  ## 95%信頼区間
+  geom_ribbon(data = fit_zibinom_a,
+            aes(x=x, y = predicted,
+                ymin = conf.low, ymax = conf.high),
+            alpha = 0.5)+
+   theme_bw(base_size = 18)+
+  theme(aspect.ratio= 0.8,
+        axis.title.y = element_text(angle=0,
+                                    vjust=0.5,
+                                    size = 10),
+        plot.title=element_text(size = 17))+
+  coord_cartesian(ylim = c(0,0.122))+
+  scale_y_continuous(breaks = seq(0,0.15,0.02))+
+  labs(title = "ゼロ過剰二項モデル\n(qによる0含まず)",
+       y = "怪\n我\nが\n確\n認\nさ\nれ\nた\n割\n合")-> p_zibinom_a
+```
+
+$q_i$で得られた0を**含む**場合  
+```{r}
+fit_zibinom_b <- ggpredict(r_zibinom,
+          ## 温度は5~15で0.1刻み
+          terms = "age[5:26,by=0.1]",
+          type ="zero_inflated")
+
+ggplot(dat_zibinom)+
+  geom_point(aes(x = age, y = num_inj/sum),
+             size = 3.5, alpha = 0.6)+
+  ### 回帰曲線
+  geom_line(data = fit_zibinom_b,
+            aes(x=x, y = predicted))+
+  ## 95%信頼区間
+  geom_ribbon(data = fit_zibinom_b,
+            aes(x=x, y = predicted,
+                ymin = conf.low, ymax = conf.high),
+            alpha = 0.5)+
+   theme_bw(base_size = 18)+
+  theme(aspect.ratio= 0.8,
+        axis.title.y = element_text(angle=0,
+                                    vjust=0.5,
+                                    size =10),
+        plot.title=element_text(size = 17))+
+  coord_cartesian(ylim = c(0,0.122))+
+  scale_y_continuous(breaks = seq(0,0.15,0.02))+
+  labs(title = "ゼロ過剰二項モデル\n(qによる0含む)",
+       y = "怪\n我\nが\n確\n認\nさ\nれ\nた\n割\n合")-> p_zibinom_b
+```
+
+比較のため、普通のポワソン回帰による回帰曲線も併置する。  
+```{r, fig.dim = c(13,13)}
+library(patchwork)
+
+p_binom + p_zibinom_a + p_zibinom_b + plot_layout(ncol = 2)
+```
+
+## ゼロ過剰二項モデルの分析例2(GLMMの場合)  
+ゼロ過剰モデルはランダム効果が含まれる一般化線形モデル(GLMM)についても適用できる。先ほどと同様に
+ニホンザルのメスが群れ外オスから攻撃された直後に怪我が確認されるか否かを調べたとする。今度は先ほどとは異なり5年分のデータがある、すなわち同じメスについて5つのデータポイントがあるとする(`dat_zibinomglmm`)。なお、`femaleID`はメスのIDを、`sum`は攻撃された回数を、`num_inj`は攻撃の直後に怪我が確認された回数を、`age`はメスの年齢を表す。        
+
+```{r, echo = FALSE}
+set.seed(1234)
+
+N <- 1000
+femaleID <- rep(seq(1,N/5,by=1),each=5)
+age <- rep(rnorm(N/5, 15, 3.5), each = 5)
+sum <- rep(rpois(N/5,100), each = 5)
+
+p <- exp((0.8 - 0.08*age))/(1 + exp((0.8 - 0.08*age)))
+
+r <- rep(rnorm(200, mean = 0, sd = 0.8),each=5)
+
+num_inj <- rep(0,N)
+
+for(i in 1:N){
+  num_inj[i] <- rbinom(1,1,1-p[i])*rbinom(1, sum[i], exp(-5.7 + 0.15*age[i] + r[i])/(1 + exp(-5.7 + 0.15*age[i] + r[i])))
+}
+
+dat_zibinom_glmm <- data.frame(femaleID = as.factor(femaleID),
+                          age = age,
+           num_inj = num_inj,
+           sum = sum)
+```
+
+```{r}
+dat_zibinom_glmm
+```
+<br/>  
+
+サルの年齢(`age`)と攻撃の直後に怪我が確認された割合(`num_inj`/`sum`)をプロットしたところ、以下のようになった。年齢が高くなるほど、怪我が確認された割合が多くなるように見える。  
+
+```{r, fig.dim = c(4.5,3.5)}
+dat_zibinom_glmm %>% 
+  ggplot(aes(x = age, y = num_inj/sum))+
+  geom_point(size = 3.5, alpha = 0.6)+
+  theme_bw(base_size = 12)+
+  theme(aspect.ratio= 0.8,
+        axis.title.y = element_text(angle=0,
+                                    vjust=0.5,
+                                    size = 10))+
+  coord_cartesian(ylim = c(0,0.35))+
+  scale_y_continuous(breaks = seq(0,0.35,0.05))+
+  labs(y = "怪\n我\nが\n確\n認\nさ\nれ\nた\n割\n合")
+```
+
+### 普通のGLMMを適用する  
+そこで、以下のようなGLMMを考え、年齢が怪我が確認された割合に影響するかを調べる。  
+
+- 分布: 二項分布  
+- リンク関数: logit関数  
+- 応答変数: 怪我が確認された割合(`num_inj`/`sum`)  
+- 説明変数: 年齢(`age`)  
+- ランダム切片: メスID
+
+
+数式で表すと以下のようになる。ただし、$i$は各データポイントのIDを示す。例えば、$age_i$は、$i$番目の個体の年齢を表す。ただし、$i = 1,2,3,...,1000$である。     
+
+なお、$r_j \sim Normal(0, \sigma_j)$は$r_{femaleID_i}$が平均0、分散$\sigma^2$の正規分布に従って得られることを示す。  
+
+$$
+\begin{aligned}
+r_{femaleID_i} &\sim Normal(0, \sigma^2) \\
+logit(p_i) &= log(\frac{p_i}{1-p_i}) = \beta_0 + \beta_{1} \times age_i + r_{femaleID_i}\\
+num\_inj_i &\sim Binomial(trials_i, p_i)
+\end{aligned}
+$$
+
+Rでは以下のように実行する。  
+```{r}
+r_binom_glmm <- glmer(data = dat_zibinom_glmm,
+              cbind(num_inj, sum-num_inj) ~ age + (1|femaleID),
+              family = binomial(link="logit"))
+```
+
+結果は以下のようになり、$\beta_0$の推定値は`r sprintf("%.3f",glmmTMB::fixef(r_binom_glmm)[[1]])`、$\beta_1$の推定値は`r sprintf("%.3f",glmmTMB::fixef(r_binom_glmm)[[2]])`、$\sigma$の推定値は`r sprintf("%.3f",data.frame(glmmTMB::VarCorr(r_binom_glmm))$sdcor)`である。  
+
+```{r}
+summary(r_binom_glmm)
+```
+
+つまり、$r_{femaleID_i}$は平均0、標準偏差0.888の正規分布から得られ、怪我が確認される回数は試行数10、$\frac{p_i}{1-p_i} = e^{-7.40 + 0.216 \times age_i + r_{femaleID_i}}$となる二項分布から得られると推定される。  
+
+そこで、推定したパラメータを持つモデルの下で得られるデータをシミュレートし(`num_inj_sim_glmm`)、それを実際に得られたデータと比較してみる。  
+
+下の図からわかるように、実際に得られたデータから算出された怪我が観察された割合(`prop_inj`)では、**推定されたモデルからシミュレートされたデータ**(`prop_inj_sim_glmm`)**より0が多い**(= ゼロ過剰が生じている)。GLMの場合と同様に<u>怪我がをしていても体毛に隠れていて気づかない場合があったなど、0が増えてしまう何らかのメカニズムがあったと推測される</u>。    
+
+```{r, fig.dim = c(7.5,4.5)}
+## モデルの下で得られるデータをシミュレート  
+p <- 1/(1 +exp(-(fixef(r_binom_glmm)[[1]] + fixef(r_binom_glmm)[[2]]*dat_zibinom_glmm$age + rep(ranef(r_binom_glmm)$femaleID$`(Intercept)`,each = 5))))
+
+num_inj_sim_glmm <- rbinom(N, dat_zibinom_glmm$sum, p)
+prop_inj_sim_glmm <- num_inj_sim_glmm/dat_zibinom_glmm$sum
+
+## 実際のデータと比較  
+data.frame(prop_inj = num_inj/dat_zibinom_glmm$sum,
+           prop_inj_sim_glmm = prop_inj_sim_glmm) %>%
+  pivot_longer(cols = 1:2) %>% 
+  ggplot(aes(x = value))+
+  geom_histogram(aes(fill = name),
+                 position = "dodge", alpha = 0.8,
+                 breaks = seq(0,0.2,by=0.01))+
+  theme_bw(base_size = 13)+
+  theme(aspect.ratio=0.8,
+        axis.title.y = element_text(angle=0,vjust=0.5))+
+  labs(x = "怪我が確認された割合",
+       y = "度\n数")+
+  coord_cartesian(xlim = c(0,0.13))-> p_binom_hist
+
+p_binom_hist
+```
+
+検定をすると、ゼロ過剰が検出される。
+```{r, fig.dim = c(4.5,4)}
+testZeroInflation(r_binom_glmm)
+```
+
+dispersion parameterを算出すると、二項分布での規定値(= 1)を越えており、過分散が生じていることが分かる。おそらくゼロ過剰が原因だろう。      
+```{r}
+resid_binom_glmm <-simulateResiduals(r_binom_glmm)
+
+check_overdispersion(r_binom_glmm)
+```
+
+QQplotをみても、データがモデルによく当てはまっていないことが分かる。  
+```{r, fig.dim = c(4.5,4)}
+plotQQunif(resid_binom_glmm)
+```
+
+
+### ゼロ過剰二項モデル  
+そこで、ゼロ過剰モデルを考える。  
+数式で表すと以下のようになる。ただし、$i$は各データポイントのIDを示す。例えば、$age_i$は、$i$番目の個体の年齢を表す。ただし、$i = 1,2,3,...,1000$である。  
+
+なお、今回は$q_i$は年齢によって変化するが、メスのIDによるばらつきはないとする(メスIDによるばらつきを仮定することもできる)。       
+
+$$
+\begin{aligned}
+r_{femaleID_i} &\sim Normal(0, \sigma^2) \\
+logit(q_i) &= log(\frac{q_i}{1-q_i}) = \beta_{10} + \beta_{11} \times age_i\\
+logit(p_i) &= log(\frac{p_i}{1-p_i}) = \beta_{20} + \beta_{21} \times age_i + r_{femaleID_i}\\
+num\_inj_i &\sim ZIBinomial(q_i, trials_i, p_i)
+\end{aligned}
+$$
+
+Rでは以下のコードで実行できる。  
+```{r}
+r_zibinom_glmm <- glmmTMB(data = dat_zibinom_glmm,
+  cbind(num_inj, sum - num_inj) ~ age + (1|femaleID),
+  ## 年齢によらないとする場合はziformula~1,
+  ## メスIDによるばらつきを仮定する場合はziformula ~ age + (1|femaleID)
+                    ziformula = ~age,
+                    family = "binomial")
+```
+
+モデルで推定されたパラメータは以下のようになる。
+
+`Zero-inflation model:`というところにある推定結果が$q_i$に関するパラメータの推定値であり、$\beta_{10}$と$\beta_{11}$の推定値はそれぞれ`r sprintf("%.3f",glmmTMB::fixef(r_zibinom_glmm)[[2]][[1]])`、`r sprintf("%.3f",glmmTMB::fixef(r_zibinom_glmm)[[2]][[2]])`となる。  
+
+`Conditional model:`というところにある推定結果が$p_i$に関するパラメータの推定値であり、$\beta_{20}$と$\beta_{21}$の推定値はそれぞれ`r sprintf("%.3f",glmmTMB::fixef(r_zibinom_glmm)[[1]][[1]])`、`r sprintf("%.3f",glmmTMB::fixef(r_zibinom_glmm)[[1]][[2]])`となる。  
+
+```{r}
+summary(r_zibinom_glmm)
+```
+
+推定したパラメータを持つゼロ過剰二項モデルの下で得られるデータをシミュレートし(`num_inj_zisim_glmm`)、それを実際に得られたデータと比較してみる。  
+
+```{r}
+## 推定されたパラメータからデータをシミュレート
+q <- 1/(1 +exp(-(fixef(r_zibinom_glmm)[[2]][[1]] + fixef(r_zibinom_glmm)[[2]][[2]]*dat_zibinom_glmm$age)))
+
+p <- 1/(1 +exp(-(fixef(r_zibinom_glmm)[[1]][[1]] + fixef(r_zibinom_glmm)[[1]][[2]]*dat_zibinom_glmm$age +  rep(as.vector(ranef(r_binom_glmm))$femaleID$`(Intercept)`,5))))
+
+num_inj_zisim_glmm <- rbinom(N,1,1-q)*rbinom(N,dat_zibinom_glmm$sum, p)
+
+prop_inj_zisim_glmm <- num_inj_zisim_glmm/dat_zibinom_glmm$sum
+```
+
+下の図からわかるように、推定されたモデルからシミュレートされたデータから算出した怪我が観察された割合(`prop_inj_zisim_glmm`)の分布は、さきほどより実際のデータとよくマッチしていることが分かる。   
+
+```{r, fig.dim = c(7,4.5)}
+## 実際のデータと比較  
+  data.frame(prop_inj = dat_zibinom_glmm$num_inj/dat_zibinom_glmm$sum,
+           prop_inj_zisim_glmm = prop_inj_zisim_glmm) %>%
+  pivot_longer(cols = 1:2) %>% 
+  ggplot(aes(x = value))+
+  geom_histogram(aes(fill = name),
+                 position = "dodge", alpha = 0.8,
+                 breaks = seq(0,0.13,0.01))+
+  theme_bw(base_size = 13)+
+  theme(aspect.ratio=0.8,
+        axis.title.y = element_text(angle=0,vjust=0.5))+
+  labs(x = "怪我が確認された割合",
+       y = "度\n数") -> p_zibinom_glmm_hist
+
+p_zibinom_glmm_hist
+```
+
+検定をしても、ゼロ過剰は検出されない。
+```{r, fig.dim = c(4.5,4)}
+testZeroInflation(r_zibinom_glmm)
+```
+
+検定を行っても過分散が検出されない。
+```{r, fig.dim = c(4.5,4)}
+resid_zibinom_glmm <-simulateResiduals(r_zibinom_glmm)
+
+testDispersion(resid_zibinom_glmm)
+```
+
+QQplotをみても、データがモデルによく当てはまっていることが分かる。  
+```{r, fig.dim = c(4.5,4)}
+plotQQunif(resid_zibinom_glmm)
+```
+
+推定されたモデルに基づく回帰曲線を描画する。  
+確率$q_i$で得られた0を含まないものと、含むものを両方描ける。  
+
+$q_i$で得られた0を**含まない**場合  
+```{r}
+fit_zibinom_glmm_a <- ggpredict(r_zibinom_glmm,
+          ## 温度は5~26で0.1刻み
+          terms = "age[5:26,by=0.1]",
+          type ="fixed")
+
+ggplot(dat_zibinom_glmm)+
+  geom_point(aes(x = age, y = num_inj/sum),
+             size = 3.5, alpha = 0.6)+
+  ### 回帰曲線
+  geom_line(data = fit_zibinom_glmm_a,
+            aes(x=x, y = predicted))+
+  ## 95%信頼区間
+  geom_ribbon(data = fit_zibinom_glmm_a,
+            aes(x=x, y = predicted,
+                ymin = conf.low, ymax = conf.high),
+            alpha = 0.5)+
+   theme_bw(base_size = 18)+
+  theme(aspect.ratio= 0.8,
+        axis.title.y = element_text(angle=0,
+                                    vjust=0.5,
+                                    size = 10),
+        plot.title=element_text(size = 17))+
+  coord_cartesian(ylim = c(0,0.35))+
+  scale_y_continuous(breaks = seq(0,0.35,0.05))+
+  labs(title = "ゼロ過剰二項モデル\n(qによる0含まず)",
+       y = "怪\n我\nが\n確\n認\nさ\nれ\nた\n割\n合")-> p_zibinom_glmm_a
+```
+
+$q_i$で得られた0を**含む**場合  
+```{r}
+fit_zibinom_glmm_b <- ggpredict(r_zibinom_glmm,
+          ## 温度は5~15で0.1刻み
+          terms = "age[5:26,by=0.1]",
+          type ="zero_inflated")
+
+ggplot(dat_zibinom_glmm)+
+  geom_point(aes(x = age, y = num_inj/sum),
+             size = 3.5, alpha = 0.6)+
+  ### 回帰曲線
+  geom_line(data = fit_zibinom_glmm_b,
+            aes(x=x, y = predicted))+
+  ## 95%信頼区間
+  geom_ribbon(data = fit_zibinom_glmm_b,
+            aes(x=x, y = predicted,
+                ymin = conf.low, ymax = conf.high),
+            alpha = 0.5)+
+   theme_bw(base_size = 18)+
+  theme(aspect.ratio= 0.8,
+        axis.title.y = element_text(angle=0,
+                                    vjust=0.5,
+                                    size =10),
+        plot.title=element_text(size = 17))+
+  coord_cartesian(ylim = c(0,0.35))+
+  scale_y_continuous(breaks = seq(0,0.35,0.05))+
+  labs(title = "ゼロ過剰二項モデル\n(qによる0含む)",
+       y = "怪\n我\nが\n確\n認\nさ\nれ\nた\n割\n合")-> p_zibinom_glmm_b
+```
+
+```{r, fig.dim = c(13,7.5)}
+library(patchwork)
+
+p_zibinom_glmm_a + p_zibinom_glmm_b + plot_layout(ncol = 2)
+```
+
+
+# References

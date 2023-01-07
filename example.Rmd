@@ -1,0 +1,182 @@
+```{r}
+library(tidyverse)
+library(MASS)
+library(lme4)
+library(ggsci)
+library(lemon)
+library(easystats)
+```
+
+```{r}
+set.seed(123)
+N <- 72
+temp <- rnorm(N, 25, 2.5)
+place <- rep(c("A","B","C","D","E","F"), each = N/6)
+r <- rep(rnorm(6, 0, sd = 0.5),each = 12)
+sales <- rpois(N, exp(0.3 + 0.12*temp + r))
+
+data <- data.frame(sales = sales,
+                   temp = temp,
+                   place = place)
+
+ggplot(data, aes(x = temp, y = sales))+
+  geom_point(aes(color = place))
+
+r_glm <- glm(data = data,
+         sales ~ temp ,
+         family = "poisson")
+
+fit_glm<- estimate_expectation(r_glm,
+                              data = data.frame(temp=seq(19,31,by=0.01)),
+                              include_random = FALSE)
+
+pred_glm <- estimate_prediction(r_glm,
+                              data = data.frame(temp=seq(19,31,by=0.01)),
+                              include_random = FALSE)
+
+temp <- seq(19,31,by = 0.01)
+
+pred <- data.frame(n = 1:10000)
+
+for(i in 1:1201){
+pred[,i+1] <- rpois(10000,lambda = exp(r_glm$coefficients[[1]]+ r_glm$coefficients[[2]]*temp[i]))
+}
+
+pred %>% 
+  rename_with(~str_replace(.x,"V","")) %>% 
+  pivot_longer(2:1202) %>% 
+  mutate(name = as.numeric(name)-1) %>% 
+  group_by(name) %>% 
+  summarise(median = median(value),
+            CI_low = quantile(value,0.025),
+            CI_high = quantile(value,0.975)) %>% 
+  mutate(temp = seq(19,31,by = 0.01)) -> pred_glm
+
+ggplot(data,aes(x=temp))+
+  geom_point(aes(y = sales))+
+  geom_line(data = fit_glm, aes(y = Predicted))+
+  geom_ribbon(data = fit_glm,aes(ymin = CI_low, ymax = CI_high),
+            alpha = 0.5)+
+  geom_ribbon(data = pred_glm,aes(ymin = CI_low, ymax = CI_high),
+            alpha = 0.3)+
+  theme_bw(base_size = 12)+
+  theme(aspect.ratio = 0.8)+
+  coord_cartesian(ylim = c(0,75))
+```
+
+Dispersion ratioまたはdispersion parameter($\phi$)は以下の式で求められる。ただし、$N$は観測値の数、$y_i$は実際の観測値、$\bar{\mu_i}$はモデルの推定結果に基づく推定値(今回の例では、$\lambda = 0.0033 + 0.121 \times 気温$))、$k$は推定されたパラメータ数(今回は$\beta_0$と$\beta_1$の2つ)である。$\phi$は、二項分布とポワソン分布では過分散がなければ1になるはずである。
+$$
+\begin{aligned}
+Pearsonの\chi^2 &= \sum_{i=1}^N \frac{(y_i - \bar{\mu_i})}{\bar{\mu_i}}\\
+\phi &= \frac{Pearsonの \chi^2}{N - k}
+\end{aligned}
+$$
+
+Rでは、以下のようにして$\phi$を求められる。1を大きく超えており、過分散が生じていることが分かる。
+```{r}
+dp <- sum(residuals(r_glm, type = "pearson")^2)/r_glm$df.residual
+
+dp
+```
+
+$\phi$は$\phi = 1$のとき自由度$N-k$の$\chi^2$分布に従うため、実際の
+```{r}
+check_overdispersion(r_glm)
+```
+
+```{r}
+r_glm_nb <- glm.nb(data = data,
+         sales ~ temp)
+
+summary(r_glm_nb)
+
+fit_glm_nb <- estimate_expectation(r_glm_nb,
+                              data = data.frame(temp=seq(19,31,by=0.01)),
+                              include_random = FALSE)
+
+pred_nb <- data.frame(n = 1:10000)
+
+for(i in 1:1201){
+pred_nb[,i+1] <- rnegbin(10000,mu = exp(r_glm_nb$coefficients[[1]]+ r_glm_nb$coefficients[[2]]*temp[i]),r_glm_nb$theta)
+}
+
+pred_nb %>% 
+  rename_with(~str_replace(.x,"V","")) %>% 
+  pivot_longer(2:1202) %>% 
+  mutate(name = as.numeric(name)-1) %>% 
+  group_by(name) %>% 
+  summarise(median = median(value),
+            CI_low = quantile(value,0.025),
+            CI_high = quantile(value,0.975)) %>% 
+  mutate(temp = seq(19,31,by = 0.01)) -> pred_glm_nb
+
+ggplot(data,aes(x=temp))+
+  geom_point(aes(y = sales))+
+  geom_line(data = fit_glm_nb, aes(y = Predicted))+
+  geom_ribbon(data = fit_glm_nb,aes(ymin = CI_low, ymax = CI_high),
+            alpha = 0.5)+
+  geom_ribbon(data = pred_glm_nb,aes(ymin = CI_low, ymax = CI_high),
+            alpha = 0.3)+
+  theme_bw(base_size = 12)+
+  theme(aspect.ratio = 0.8)+
+  coord_cartesian(ylim = c(0,75))
+```
+
+
+```{r}
+r_glmm <- glmer(data = data,
+         sales ~ temp + (1|place),
+         family = "poisson")
+
+summary(r_glmm)
+
+nd <- crossing(temp=seq(19,31,by=0.01),
+               place = c("A","B","C","D","E","F"))
+
+fit_glmm<- estimate_relation(r_glmm,
+                              data = nd,
+                              include_random = TRUE)
+
+pred_glmm <- estimate_prediction(r_glmm,
+                              data = nd,
+                              include_random = TRUE)
+
+pred2 <- data.frame(n = 1:10000)
+temp <- seq(19,31,by = 0.1)
+ref <- ranef(r_glmm)$place[[1]]
+
+for(j in 1:6){
+   for(i in 1:121){
+      pred2[,i+1 + 121*(j-1)] <- rpois(10000,lambda = exp(fixef(r_glmm)[[1]]+   fixef(r_glmm)[[2]]*temp[i] + ref[j]))
+  }
+}
+
+pred2 %>% 
+  rename_with(~str_replace(.x,"V","")) %>% 
+  pivot_longer(2:727) %>% 
+  mutate(name = as.numeric(name)-1) %>% 
+  arrange(name) %>% 
+  mutate(place = rep(c("A","B","C","D","E","F"), each = n()/6)) %>% 
+  group_by(name, place) %>% 
+  summarise(median = median(value),
+            CI_low = quantile(value,0.025),
+            CI_high = quantile(value,0.975)) %>% 
+  ungroup() %>% 
+  mutate(temp = rep(seq(19,31,by = 0.1),times = 6)) -> pred_glmm
+
+
+ggplot(data,aes(x=temp))+
+   geom_point(aes(y = sales))+
+  geom_line(data = fit_glmm, aes(y = Predicted))+
+  geom_ribbon(data = fit_glmm,aes(ymin = CI_low, ymax = CI_high),
+            alpha = 0.5)+
+  geom_ribbon(data = pred_glmm,aes(ymin = CI_low, ymax = CI_high),
+            alpha = 0.3)+
+  theme_bw(base_size = 12)+
+  theme(aspect.ratio = 0.8)+
+  scale_color_nejm()+
+  scale_fill_nejm()+
+  facet_rep_wrap(~place,repeat.tick.labels = TRUE)
+```
+
+

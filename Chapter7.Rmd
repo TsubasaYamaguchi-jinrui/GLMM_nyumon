@@ -1,0 +1,362 @@
+以下で例を見て行こう。  
+
+### 過分散の例1    
+例えば、ニホンザルにある餌を10回提示したときに食べる回数を調べたとしよう。50個体分のデータを収集した結果、以下のデータが得られたとする(`dat_binom`というデータ)。なお、`age`は年齢とする。    
+
+```{r, echo = FALSE}
+## 架空データの作成  
+N <- 50
+n <- 10
+age <- rpois(N, lambda = 7)
+
+## 平均して確率0.3で餌を食べるとするときの回数x。
+r <- rnorm(N, 0, 0.5)
+
+x <- rep(0,N)
+p <- rep(0,N)
+
+for(i in 1:50){
+  p[i] <- inv_logit_scaled(-0.75 + 0.17*age[i]+ r[i])
+  x[i] <- rbinom(1,n,p[i])
+}
+
+dat_binom <- data.frame(x = x,
+                        n = n,
+                        age = age)
+```
+
+```{r}
+dat_binom
+```
+
+データを調べたところ、年齢と餌を食べる割合に関連がありそうだと分かった。
+```{r}
+ggplot(dat_binom, aes(x = age, y = x/n))+
+  geom_point()+
+  theme_bw(base_size = 12)+
+  theme(aspect.ratio=0.8)+
+  labs(y = "餌\nを\n食\nべ\nた\n割\n合")+
+  theme(axis.title.y = element_text(angle=0,vjust=0.5))
+```
+
+そこで、データが二項分布に従っていると仮定し、以下のようなGLMによるモデリングを行うとする。  
+
+- 分布: 二項分布  
+- 応答変数: 餌を食べる割合(`x/n`)  
+- 説明変数: 年齢(`age`)  
+- リンク関数: logit関数  
+
+数式で描くと以下のようになる。なお、$n$は試行数(10)、$p_i$は個体$i$が餌を食べる確率、$x_i$は個体$i$が餌を食べる回数、$age_i$は個体$i$の年齢を表す。また、$x \sim Binomial(n, p_i)$は、$x_i$が試行数$n$で確率$p_i$の二項分布にしたがって得られることを表す。ただし、$i = 1,2,3, ..., 50$である。    
+
+$$
+\begin{aligned}
+logit(p_i) &= log(\frac{p_i}{1-p_i}) = \alpha + \beta \times age_i\\
+x_i &\sim Binomial(n, p_i)
+\end{aligned}
+$$
+
+このデータが二項分布に従って得られていると仮定するとき、その平均($np$)はサルが餌を食べた回数の平均で推定できる。  
+
+```{r}
+mean(dat_binom$x)
+```
+
+よって、二項分布のパラメータ$p$の推定値は、$\frac{平均}{n} =$`mean(dat_binom$x)/n`となる。そのため、もしデータが二項分布に従って得られたとすれば、その分散は$np(1-p)=$`mean(dat_binom$x)*(1-mean(dat_binom$x)/n)`となるはずである。  
+
+しかし、実際のデータの分散は`sd(dat_binom$x)`であり、推定された$p$に基づく推定とは大きく異なっていることが分かる。  
+
+```{r}
+sd(dat_binom$x)
+```
+
+このようなとき、モデルに過分散が生じているという。   
+
+## GLMM
+
+```{r}
+set.seed(123)
+
+N <- 60
+x <- rnorm(N, 10, 1.5)
+group <- rep(c(1,2,3,4,5,6), each = N/6)
+r <- rep(rnorm(6, mean = 0, sd = 1.2),each = N/6)
+
+y <- rep(0,N)
+
+for(i in 1:60){
+  y[i] <- rpois(1, lambda = exp(0.02 + 0.18*x[i] + r[i]))
+}
+
+data_glmm_pois <- data.frame(x = x,
+                   y = y,
+                   group = group)
+```
+
+```{r}
+r <- glm(y ~ x,
+         family = "poisson",
+         data = data_glmm_pois)
+
+summary(r)
+```
+
+dispersion parameter
+```{r}
+dp<- sum(residuals(r, type= "pearson")^2)/ r$df.res
+
+dp
+```
+
+```{r}
+library(easystats)
+
+check_overdispersion(r)
+```
+
+```{r}
+library(lme4)
+
+r_glmm <- glmer(y ~ x + (1|group),
+         family = "poisson",
+         data = data_glmm_pois)
+
+
+```
+
+## ゼロ過剰ポワソンモデル   
+
+```{r}
+
+set.seed(1234)
+N <- 1000
+x <- rnorm(N, 10, 1.5)
+
+p <- exp((7 - 0.8*x))/(1 + exp((7 - 0.8*x)))
+
+y <- rep(0,N)
+
+for(i in 1:N){
+  y[i] <- rbinom(1,1,1-p[i])*rpois(1, lambda = exp(0.02 + 0.18*x[i]))
+}
+
+dat_zi <- data.frame(x = x,
+           y = y)
+
+```
+
+```{r}
+r_pois <- glm(y ~ x,
+              data = dat_zi,
+              family = "poisson")
+
+summary(r_pois)
+
+lambda <- exp(coef(r_pois)[[1]] + coef(r_pois)[[2]]*x)
+
+y_sim <- rpois(1000,lambda)
+```
+
+実際のデータは、推定されたモデルよりもゼロが多い。  
+```{r}
+data.frame(y = y,
+           ysim = y_sim) %>% 
+  pivot_longer(cols = 1:2) %>% 
+  ggplot(aes(x = value))+
+  geom_histogram(aes(fill = name),
+                 position = "dodge", alpha = 0.8,
+                 breaks = seq(0,20,1))
+```
+
+```{r}
+r_zipois <- glmmTMB(y ~ x,
+              data = dat_zi,
+              ziformula = ~x,
+              family = "poisson")
+
+summary(r_zipois)
+```
+
+```{r}
+plot(simulateResiduals(r_zipois))
+```
+
+```{r}
+set.seed(123)
+
+r_zipois_null <- glmmTMB(y ~ 1,
+              data = dat_zi,
+              ziformula = ~x,
+              family = "poisson")
+
+anova(r_zipois_null,r_zipois, method = "LRT")
+```
+
+```{r}
+library(ggeffects)
+
+a <- ggpredict(r_zipois,
+          terms = "x[5:15,by=0.1]",
+          type ="fixed")
+
+a2 <- ggpredict(r_zipois,
+          terms = "x[5:15,by=0.1]",
+          type ="zero_inflated")
+
+dat_zi %>% 
+  ggplot(aes(x= x, y =y ))+
+  geom_point()+
+  geom_line(data =a,
+            aes(x=x, y = predicted))+
+  geom_ribbon(data =a,
+            aes(x=x, y = predicted, ymin = conf.low,
+                ymax = conf.high),
+            alpha = 0.5)
+```
+
+## ゼロ過剰二項モデル  
+```{r}
+set.seed(1234)
+N <- 100
+x <- rnorm(N, 15, 3.5)
+sum <- rpois(N,100)
+
+p <- exp((0.8 - 0.08*x))/(1 + exp((0.8 - 0.08*x)))
+
+y <- rep(0,N)
+
+for(i in 1:N){
+  y[i] <- rbinom(1,1,1-p[i])*rbinom(1, sum[i], exp(-5.5 + 0.12*x[i])/(1 + exp(-5.5 + 0.12*x[i])))
+}
+
+dat_zib <- data.frame(x = x,
+           y = y,
+           sum = sum)
+
+ggplot(dat_zibinom)+
+  geom_point(aes(x=x,y=y/sum))
+```
+
+```{r}
+r_binom <- glm(cbind(y,sum-y) ~ x,
+              data = dat_zibinom,
+              family = "binomial")
+
+summary(r_binom)
+
+check_overdispersion(r_binom)
+
+prob <- 1/(1 +exp(-(coef(r_binom)[[1]] + coef(r_binom)[[2]]*x)))
+
+y_sim <- rbinom(N, sum, prob)/sum
+```
+
+```{r}
+data.frame(y = y/sum,
+           ysim = y_sim) %>% 
+  pivot_longer(cols = 1:2) %>% 
+  ggplot(aes(x = value))+
+  geom_histogram(aes(fill = name),
+                 position = "dodge", alpha = 0.8,
+                 breaks = seq(0,0.1,0.005))
+```
+
+```{r}
+r_zibinom <- glmmTMB(cbind(y,sum-y) ~ x,
+              data = dat_zib,
+              ziformula = ~x,
+              family = "binomial")
+
+summary(r_zibinom)
+```
+
+```{r}
+prob1 <- 1/(1 +exp(-(fixef(r_zibinom)[[1]][[1]] + fixef(r_zibinom)[[1]][[2]]*x)))
+
+prob2 <- 1/(1 +exp(-(fixef(r_zibinom)[[2]][[1]] + fixef(r_zibinom)[[2]][[2]]*x)))
+
+y_sim_zi <- rbinom(N,1,1-prob2)*rbinom(1000, sum, prob1)/sum
+
+data.frame(y = y/sum,
+           ysim_zi = y_sim_zi) %>% 
+  pivot_longer(cols = 1:2) %>% 
+  ggplot(aes(x = value))+
+  geom_histogram(aes(fill = name),
+                 position = "dodge", alpha = 0.8,
+                 breaks = seq(0,0.1,0.005))
+```
+
+## ゼロ過剰二項モデル(GLMM)  
+```{r}
+set.seed(1234)
+N <- 1000
+x <- rnorm(N, 15, 3.5)
+sum <- rpois(N,100)
+group <- rep(1:10,each=100)
+r <- rep(rnorm(10,0,1.2),each = 100)
+
+p <- exp((0.8 - 0.08*x))/(1 + exp((0.8 - 0.08*x)))
+
+y <- rep(0,N)
+
+for(i in 1:N){
+  y[i] <- rbinom(1,1,1-p[i])*rbinom(1, sum[i], exp(-5.5 + 0.12*x[i] + r[i])/(1 + exp(-5.5 + 0.12*x[i] + r[i])))
+}
+
+dat_zib <- data.frame(x = x,
+           y = y,
+           sum = sum,
+           group = group)
+
+ggplot(dat_zib)+
+  geom_point(aes(x=x,y=y/sum))
+```
+
+```{r}
+r_binom <- glmer(cbind(y,sum-y) ~ x + (1|group),
+              data = dat_zib,
+              family = "binomial")
+
+summary(r_binom)
+
+check_overdispersion(r_binom)
+
+prob <- 1/(1 +exp(-(fixef(r_binom)[[1]] + fixef(r_binom)[[2]]*x + rep(ranef(r_binom)$group[[1]],each = 100))))
+
+y_sim <- rbinom(1000, sum, prob)/sum
+```
+
+```{r}
+data.frame(y = y/sum,
+           ysim = y_sim) %>% 
+  pivot_longer(cols = 1:2) %>% 
+  ggplot(aes(x = value))+
+  geom_histogram(aes(fill = name),
+                 position = "dodge", alpha = 0.8,
+                 breaks = seq(0,0.1,0.005))
+```
+
+```{r}
+r_zibinom <- glmmTMB(cbind(y,sum-y) ~ x + (1|group),
+              data = dat_zib,
+              ziformula = ~x,
+              family = "binomial")
+
+summary(r_zibinom)
+```
+
+```{r}
+prob1 <- 1/(1 +exp(-(fixef(r_zibinom)[[1]][[1]] + fixef(r_zibinom)[[1]][[2]]*x)))
+
+prob2 <- 1/(1 +exp(-(fixef(r_zibinom)[[2]][[1]] + fixef(r_zibinom)[[2]][[2]]*x)))
+
+y_sim_zi <- rbinom(1000,1,1-prob2)*rbinom(1000, sum, prob1)/sum
+
+data.frame(y = y/sum,
+           ysim_zi = y_sim_zi) %>% 
+  pivot_longer(cols = 1:2) %>% 
+  ggplot(aes(x = value))+
+  geom_histogram(aes(fill = name),
+                 position = "dodge", alpha = 0.8,
+                 breaks = seq(0,0.1,0.005))
+```
+

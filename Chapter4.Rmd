@@ -1,0 +1,200 @@
+
+```{r}
+set.seed(123)
+
+N <- 50
+x <- rnorm(N, 10, 1.5)
+y <- rpois(50, exp(2.5 + 0.03*x))
+
+data <- data.frame(x = x,
+                   y = y)
+```
+
+$$
+\begin{aligned}
+
+\mu_i &= \beta_0 + \beta_1x_i \\  
+y_i &\sim Normal(\mu_i, \sigma^2)
+
+\end{aligned}
+$$
+
+
+```{r}
+r <- lm(y ~ x, data = data)
+
+fit <- estimate_expectation(r,
+          data = data.frame(x=seq(min(x)-0.5,max(x)+0.5,by=0.01)))
+
+data %>% 
+  ggplot(aes(x = x, y = y))+
+  geom_point()+
+  geom_line(data = fit,
+            aes(y = Predicted))+
+  geom_ribbon(data = fit,
+              aes(ymin = CI_low, ymax = CI_high, 
+                  y = Predicted),
+              alpha = 0.3)+
+  theme_bw()+
+  theme(aspect.ratio = 1)
+```
+
+```{r}
+r_pois <- glm(y ~ x, 
+              family = poisson(link = "log"),
+              data = data)
+
+fit_pois <- estimate_expectation(r_pois,
+          data = data.frame(x=seq(min(x)-0.5,max(x)+0.5,by=0.01)))
+
+data %>% 
+  ggplot(aes(x = x, y = y))+
+  geom_point()+
+  geom_line(data = fit_pois,
+            aes(y = Predicted))+
+  geom_ribbon(data = fit_pois,
+              aes(ymin = CI_low, ymax = CI_high, 
+                  y = Predicted),
+              alpha = 0.3)+
+  theme_bw()+
+  theme(aspect.ratio = 1)
+
+summary(r_pois)
+```
+
+DHARMaパッケージでパラメトリックブートストラップ法による尤度比検定ができる。  
+```{r}
+r_pois_null <- glm(y ~ 1, 
+              family = poisson(link = "log"),
+              data = data)
+
+library(DHARMa)
+
+set.seed(123)
+out = simulateLRT(r_pois_null,r_pois, n = 1000)
+```
+
+
+```{r}
+set.seed(123)
+get.dd <- function(d)
+{
+  #dのデータの数
+  n.sample <- nrow(d)
+  #yの平均
+  y.mean <- exp(r_pois_null$coefficients[[1]])
+  #n.sampleだけ乱数発生
+  d$y.rnd <- rpois(n.sample, lambda = y.mean)
+  fit.null.rnd <- glm(y.rnd ~ 1, data = d, family = poisson)
+  fit.x.rnd <- glm(y.rnd ~ x, data = d, family = poisson)
+  #逸脱度の差
+  fit.null.rnd$deviance - fit.x.rnd$deviance
+}
+pb <- function(d, n.bootstrap)
+{
+  #get.ddをn.bootstrap回実施(回数を指定)
+  replicate(n.bootstrap, get.dd(d))
+}
+
+#1000回シミュレーション
+dd12 <- pb(data, n.bootstrap = 1000)
+summary(dd12)
+
+sum(dd12 > r_pois_null$deviance-r_pois$deviance)/1000
+```
+
+
+$$
+\begin{aligned}
+log(\lambda_i) &=  \beta_0 + \beta_1x_{i}\\
+y_i &\sim Poisson(\lambda_i)
+\end{aligned}
+$$
+
+
+```{r}
+N <- 50
+sum <- 10
+
+set.seed(123)
+x <- rnorm(N, 9.5, 2.5)
+y <- rbinom(N, sum, inv_logit_scaled(-3.9 + 0.32*x))
+
+data <- data.frame(x=x,
+                   y=y,
+                   rate = y/sum,
+                   sum = 10)
+data %>% 
+  ggplot(aes(x = x, y = y))+
+  geom_point()
+```
+
+$$
+\begin{aligned}
+\mu_i &=  \beta_0 + \beta_1x_{i}\\
+y_i &\sim Normal(\mu_i, \sigma^2)
+\end{aligned}
+$$
+
+```{r}
+r2 <- lm(rate ~ x, data = data)
+
+fit2 <- estimate_expectation(r2,
+          data = data.frame(x=seq(min(x)-1.5,max(x)+0.5,by=0.01)))
+
+data %>% 
+  ggplot(aes(x = x, y = rate))+
+  geom_point()+
+  geom_line(data = fit2,
+            aes(y = Predicted))+
+  geom_ribbon(data = fit2,
+              aes(ymin = CI_low, ymax = CI_high, 
+                  y = Predicted),
+              alpha = 0.3)+
+  scale_x_continuous(breaks = seq(0,15,by = 2))+
+  coord_cartesian(xlim = c(3.8,15))+
+  theme_bw()+
+  theme(aspect.ratio = 1)
+```
+
+$$
+\begin{aligned}
+logit(p_i) &= log(\frac{p_i}{1-p_i})
+\end{aligned}
+$$
+
+$$
+\begin{aligned}
+logit(p_i)  &= log(\frac{p_i}{1-p_i}) =  \beta_0 + \beta_1x_{i}\\
+\therefore p_i &= \frac{1}{1 + exp\lbrace-(\beta_0 + \beta_1x_{i})\rbrace}\\
+\\
+y_i &\sim Binomial(10, p_i)
+\end{aligned}
+$$
+
+
+```{r}
+r2_binom <- glm(cbind(y, 10-y) ~ x,
+                 family = binomial(link = "logit"),
+                 data = data)
+
+fit2_binom <- estimate_expectation(r2_binom,
+          data = data.frame(x=seq(min(x)-1.5,max(x)+0.5,by=0.01)))
+
+data %>% 
+  ggplot(aes(x = x, y = rate))+
+  geom_point()+
+  geom_line(data = fit2_binom,
+            aes(y = Predicted))+
+  geom_ribbon(data = fit2_binom,
+              aes(ymin = CI_low, ymax = CI_high, 
+                  y = Predicted),
+              alpha = 0.3)+
+  scale_x_continuous(breaks = seq(0,15,by = 2))+
+  coord_cartesian(xlim = c(3.8,15))+
+  theme_bw()+
+  theme(aspect.ratio = 1)
+```
+
+
+

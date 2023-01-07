@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="" xml:lang="">
+<head>
+
+  <meta charset="utf-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <title>Introduction to GLMM Using R</title>
+  <meta name="description" content="Introduction to GLMM Using R" />
+  <meta name="generator" content="bookdown 0.29 and GitBook 2.6.7" />
+
+  <meta property="og:title" content="Introduction to GLMM Using R" />
+  <meta property="og:type" content="book" />
+  
+  
+  
+
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="Introduction to GLMM Using R" />
+  
+  
+  
+
+<meta name="author" content="Tsubasa Yamaguchi" />
+
+
+<meta name="date" content="2023-01-07" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+  
+  
+
+<link rel="next" href="パッケージの読み込み.html"/>
+<script src="libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/fuse.js@6.4.6/dist/fuse.min.js"></script>
+<link href="libs/gitbook-2.6.7/css/style.css" rel="stylesheet" />
+<link href="libs/gitbook-2.6.7/css/plugin-table.css" rel="stylesheet" />
+<link href="libs/gitbook-2.6.7/css/plugin-bookdown.css" rel="stylesheet" />
+<link href="libs/gitbook-2.6.7/css/plugin-highlight.css" rel="stylesheet" />
+<link href="libs/gitbook-2.6.7/css/plugin-search.css" rel="stylesheet" />
+<link href="libs/gitbook-2.6.7/css/plugin-fontsettings.css" rel="stylesheet" />
+<link href="libs/gitbook-2.6.7/css/plugin-clipboard.css" rel="stylesheet" />
+
+
+
+
+
+
+
+
+<link href="libs/anchor-sections-1.1.0/anchor-sections.css" rel="stylesheet" />
+<link href="libs/anchor-sections-1.1.0/anchor-sections-hash.css" rel="stylesheet" />
+<script src="libs/anchor-sections-1.1.0/anchor-sections.js"></script>
+
+
+<style type="text/css">
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+    color: #aaaaaa;
+  }
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+code span.at { color: #7d9029; } /* Attribute */
+code span.bn { color: #40a070; } /* BaseN */
+code span.bu { } /* BuiltIn */
+code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+code span.ch { color: #4070a0; } /* Char */
+code span.cn { color: #880000; } /* Constant */
+code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+code span.dt { color: #902000; } /* DataType */
+code span.dv { color: #40a070; } /* DecVal */
+code span.er { color: #ff0000; font-weight: bold; } /* Error */
+code span.ex { } /* Extension */
+code span.fl { color: #40a070; } /* Float */
+code span.fu { color: #06287e; } /* Function */
+code span.im { } /* Import */
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+code span.op { color: #666666; } /* Operator */
+code span.ot { color: #007020; } /* Other */
+code span.pp { color: #bc7a00; } /* Preprocessor */
+code span.sc { color: #4070a0; } /* SpecialChar */
+code span.ss { color: #bb6688; } /* SpecialString */
+code span.st { color: #4070a0; } /* String */
+code span.va { color: #19177c; } /* Variable */
+code span.vs { color: #4070a0; } /* VerbatimString */
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+</style>
+
+<style type="text/css">
+/* Used with Pandoc 2.11+ new --citeproc when CSL is used */
+div.csl-bib-body { }
+div.csl-entry {
+  clear: both;
+}
+.hanging div.csl-entry {
+  margin-left:2em;
+  text-indent:-2em;
+}
+div.csl-left-margin {
+  min-width:2em;
+  float:left;
+}
+div.csl-right-inline {
+  margin-left:2em;
+  padding-left:1em;
+}
+div.csl-indent {
+  margin-left: 2em;
+}
+</style>
+
+<link rel="stylesheet" href="custom_style.css" type="text/css" />
+</head>
+
+<body>
+
+
+
+  <div class="book without-animation with-summary font-size-2 font-family-1" data-basepath=".">
+
+    <div class="book-summary">
+      <nav role="navigation">
+
+<ul class="summary">
+<li class="chapter" data-level="" data-path="index.html"><a href="index.html"><i class="fa fa-check"></i>本稿の目的</a>
+<ul>
+<li class="chapter" data-level="" data-path="index.html"><a href="index.html#なぜglmやglmmについて学ぶ必要があるのか"><i class="fa fa-check"></i>なぜGLMやGLMMについて学ぶ必要があるのか？</a></li>
+<li class="chapter" data-level="" data-path="index.html"><a href="index.html#本稿で扱う内容"><i class="fa fa-check"></i>本稿で扱う内容</a></li>
+</ul></li>
+<li class="chapter" data-level="" data-path="パッケージの読み込み.html"><a href="パッケージの読み込み.html"><i class="fa fa-check"></i>0. パッケージの読み込み</a></li>
+<li class="chapter" data-level="" data-path="実行環境.html"><a href="実行環境.html"><i class="fa fa-check"></i>実行環境</a></li>
+</ul>
+
+      </nav>
+    </div>
+
+    <div class="book-body">
+      <div class="body-inner">
+        <div class="book-header" role="navigation">
+          <h1>
+            <i class="fa fa-circle-o-notch fa-spin"></i><a href="./">Introduction to GLMM Using R</a>
+          </h1>
+        </div>
+
+        <div class="page-wrapper" tabindex="-1" role="main">
+          <div class="page-inner">
+
+            <section class="normal" id="section-">
+<div id="header">
+<h1 class="title">Introduction to GLMM Using R</h1>
+<p class="author"><em>Tsubasa Yamaguchi</em></p>
+<p class="date"><em>2023-01-07</em></p>
+</div>
+<div id="本稿の目的" class="section level1 unnumbered hasAnchor">
+<h1>本稿の目的<a href="index.html#本稿の目的" class="anchor-section" aria-label="Anchor link to header"></a></h1>
+<div id="なぜglmやglmmについて学ぶ必要があるのか" class="section level2 unnumbered hasAnchor">
+<h2>なぜGLMやGLMMについて学ぶ必要があるのか？<a href="index.html#なぜglmやglmmについて学ぶ必要があるのか" class="anchor-section" aria-label="Anchor link to header"></a></h2>
+<p>近年、生態学や動物行動学をはじめ、複雑な生物学のデータを解析する手法が発達してきている<span class="citation">(<a href="#ref-Harrison2018" role="doc-biblioref">Harrison et al., 2018</a>)</span>。これは、従来のシンプルな統計手法(e.g. t検定、<span class="math inline">\(\chi ^2\)</span>検定、線形回帰など)では、これらの分野で扱う複雑なデータを分析するには不適切であることが分かってきているからである。様々な分析のなかでも、<strong>一般化線形モデル(GLM)</strong>や<strong>一般化線形混合モデル(GLMM)</strong>と呼ばれる分析手法は、2000年代以降急速に用いられるようになってきた<span class="citation">(<a href="#ref-Bolker2009" role="doc-biblioref">Bolker et al., 2009</a>; <a href="#ref-Fox2015" role="doc-biblioref">Fox et al., 2015</a>; <a href="#ref-Zuur2009" role="doc-biblioref">Zuur, 2009</a>; <a href="#ref-Ohigashi2010" role="doc-biblioref">大東, 2010</a>)</span>。図<a href="index.html#fig:fig-journal">1</a>は、Google Scholarを用いて、動物行動学・生態学・霊長類学の分野で著名な学術雑誌において、“GLM”または”GLMM”という単語が出てきた論文の割合を示したものである(2023年1月7日時点)。私たちが普段読む/投稿することが多いこれらの雑誌においても、2000年代以降これらの分析手法が数多く使われるようになってきたことが示唆される。</p>
+<div class="figure" style="text-align: center"><span style="display:block;" id="fig:fig-journal"></span>
+<img src="GLMM_nyumon_files/figure-html/fig-journal-1.png" alt="GLMまたはGLMMという単語を含む論文の割合" width="1440" />
+<p class="caption">
+図1: GLMまたはGLMMという単語を含む論文の割合
+</p>
+</div>
+<p>このことから、<u>自分が適切にデータ分析を行うためだけでなく、他の研究者による論文を適切に理解するためにもGLM/GLMMについて理解することは重要</u>であるといえる。しかし、多くの研究者は分析について適切に理解しないままその論文を引用したり、自身の研究に用いてしまっているのが現状ではないだろうか。分析について理解できていなければ、仮に論文の著者が分析を誤用していたり、分析結果を誤って解釈していたりしても(実際にそのような論文はある)、論文の内容を鵜呑みしてしまうことになりかねない。これは大きな問題である。本稿の目的は、<strong>GLM/GLMMが用いられた分析結果について適切に理解できるようになる</strong>ことに加え、可能であれば<strong>Rを用いて自身のデータについてもGLM/GLMMを用いた分析ができるようになる</strong>ことである。</p>
+</div>
+<div id="本稿で扱う内容" class="section level2 unnumbered hasAnchor">
+<h2>本稿で扱う内容<a href="index.html#本稿で扱う内容" class="anchor-section" aria-label="Anchor link to header"></a></h2>
+<p>本稿で扱うのは、以下の内容である。</p>
+<ul>
+<li>社会ネットワーク分析の概要(第<a href="#c1"><strong>??</strong></a>章)</li>
+<li>rawデータからマトリックス(隣接行列)を作成する方法(第<a href="#c2"><strong>??</strong></a>章)<br />
+</li>
+<li>各ネットワーク指標の解説と算出法(第<a href="#c3"><strong>??</strong></a>章)<br />
+</li>
+<li>ネットワークデータでの統計分析（第<a href="#c4"><strong>??</strong></a>章)</li>
+</ul>
+<p>参考にしたのは主に以下の文献である。<br />
+なお、本稿の作成に使用したファイルとRのコードは筆者の<a href="https://github.com/TsubasaYamaguchi-jinrui/GLMM_nyumon">Github</a>ですべて閲覧できる。</p>
+<ul>
+<li>馬場真哉(2015) 平均・分散から始める一般化線形モデル入門 <span class="citation">(<a href="#ref-Baba2015" role="doc-biblioref">馬場, 2015</a>)</span><br />
+</li>
+<li>粕谷英一(2012) 一般化線形モデル <span class="citation">(<a href="#ref-Kasuya2012" role="doc-biblioref">松浦, 2016a</a>)</span><br />
+</li>
+<li>馬場真哉(2019) RとStanではじめるベイズ統計モデリングによるデータ分析 <span class="citation">(<a href="#ref-Baba2019" role="doc-biblioref">馬場, 2019</a>)</span><br />
+</li>
+<li>松浦健太郎(2016) StanとRでベイズ統計モデリング <span class="citation">(<a href="#ref-Matsuura2016" role="doc-biblioref">松浦, 2016b</a>)</span><br />
+</li>
+<li></li>
+</ul>
+
+</div>
+</div>
+<h3>References</h3>
+<div id="refs" class="references csl-bib-body hanging-indent" line-spacing="2">
+<div id="ref-Bolker2009" class="csl-entry">
+Bolker, B. M., Brooks, M. E., Clark, C. J., Geange, S. W., Poulsen, J. R., Stevens, M. H. H., &amp; White, J. S. S. (2009). Generalized linear mixed models: A practical guide for ecology and evolution. In <em>Trends in Ecology and Evolution</em> (No. 3; Vol. 24, pp. 127–135).
+</div>
+<div id="ref-Fox2015" class="csl-entry">
+Fox, G. A., Negrete-Yankelevich, S., &amp; Sosa, V. J. (2015). <em>Ecological statistics: Contemporary theory and application</em>. Oxford University Press.
+</div>
+<div id="ref-Harrison2018" class="csl-entry">
+Harrison, X. A., Donaldson, L., Correa-Cano, M. E., Evans, J., Fisher, D. N., Goodwin, C. E. D., Robinson, B. S., Hodgson, D. J., &amp; Inger, R. (2018). A brief introduction to mixed effects modelling and multi-model inference in ecology. <em>PeerJ</em>, <em>2018</em>(5).
+</div>
+<div id="ref-Zuur2009" class="csl-entry">
+Zuur, A. F. (2009). <em>Mixed effects models and extensions in ecology with <span>R</span></em>. Springer.
+</div>
+<div id="ref-Ohigashi2010" class="csl-entry">
+大東健太郎. (2010). <span>線形モデルから一般化線形モデル（GLM）へ</span>. <em>雑草研究</em>, <em>55</em>(4), 268–274.
+</div>
+<div id="ref-Matsuura2016" class="csl-entry">
+松浦健太郎. (2016b). <em>StanとRでベイズ統計モデリング</em>. 共立出版.
+</div>
+<div id="ref-Kasuya2012" class="csl-entry">
+松浦健太郎. (2016a). <em>StanとRでベイズ統計モデリング</em>. 共立出版.
+</div>
+<div id="ref-Baba2015" class="csl-entry">
+馬場真哉. (2015). <em>平均・分散から始める一般化線形モデル入門</em>. プレアデス出版.
+</div>
+<div id="ref-Baba2019" class="csl-entry">
+馬場真哉. (2019). <em>RとStanではじめるベイズ統計モデリングによるデータ分析</em>. 講談社.
+</div>
+</div>
+            </section>
+
+          </div>
+        </div>
+      </div>
+
+<a href="パッケージの読み込み.html" class="navigation navigation-next navigation-unique" aria-label="Next page"><i class="fa fa-angle-right"></i></a>
+    </div>
+  </div>
+<script src="libs/gitbook-2.6.7/js/app.min.js"></script>
+<script src="libs/gitbook-2.6.7/js/clipboard.min.js"></script>
+<script src="libs/gitbook-2.6.7/js/plugin-search.js"></script>
+<script src="libs/gitbook-2.6.7/js/plugin-sharing.js"></script>
+<script src="libs/gitbook-2.6.7/js/plugin-fontsettings.js"></script>
+<script src="libs/gitbook-2.6.7/js/plugin-bookdown.js"></script>
+<script src="libs/gitbook-2.6.7/js/jquery.highlight.js"></script>
+<script src="libs/gitbook-2.6.7/js/plugin-clipboard.js"></script>
+<script>
+gitbook.require(["gitbook"], function(gitbook) {
+gitbook.start({
+"sharing": {
+"github": false,
+"facebook": true,
+"twitter": true,
+"linkedin": false,
+"weibo": false,
+"instapaper": false,
+"vk": false,
+"whatsapp": false,
+"all": ["facebook", "twitter", "linkedin", "weibo", "instapaper"]
+},
+"fontsettings": {
+"theme": "white",
+"family": "sans",
+"size": 2
+},
+"edit": {
+"link": null,
+"text": null
+},
+"history": {
+"link": null,
+"text": null
+},
+"view": {
+"link": null,
+"text": null
+},
+"download": null,
+"search": {
+"engine": "fuse",
+"options": null
+},
+"toc": {
+"collapse": "subsection"
+}
+});
+});
+</script>
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    var src = "true";
+    if (src === "" || src === "true") src = "https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.9/latest.js?config=TeX-MML-AM_CHTML";
+    if (location.protocol !== "file:")
+      if (/^https?:/.test(src))
+        src = src.replace(/^https?:/, '');
+    script.src = src;
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+</body>
+
+</html>

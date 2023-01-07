@@ -1,0 +1,55 @@
+# 最尤推定  
+
+```{r}
+set.seed(123)
+N <- 500
+x <- sample(seq(2,10, by = 0.01), size = N, replace = TRUE)
+y <- rpois(N, lambda = exp(0.02 + 0.18*x))
+
+data <- data.frame(x = x,
+                   y = y) 
+
+data2 <- data %>% 
+  expand(crossing(alpha = seq(0.4, 1, length.out = 3), beta = seq(0.125,0.2,length.out = 3)), nesting(x,y)) %>%
+  mutate(ID = str_c("a",alpha,"-","b",beta))
+  
+ggplot(data, aes(x = x, y = y))+
+  geom_point()+
+  geom_line(data = data2,
+            aes(x = x, y = exp(alpha + beta*x), group = ID))
+```
+
+
+
+
+```{r}
+loglik <- function(alpha,beta){
+  sum(pmap_dbl(list(x = data$y, lambda = exp(alpha + beta*data$x)), dpois, log = TRUE))
+}
+
+crossing(
+  alpha = seq(-1,1,by = 0.01),
+  beta = seq(0,0.3, by = 0.01)) %>% 
+  group_by(alpha,beta) %>% 
+  mutate(loglik = loglik(alpha, beta)) -> loglik_data
+  
+n <- which.max(loglik_data$loglik)
+
+loglik_data %>% 
+  ggplot(aes(x = alpha, y = beta))+
+  geom_contour(aes(z = loglik), binwidth = 6.5)+
+  geom_point(aes(x = loglik_data$alpha[[n]], y = loglik_data$beta[[n]]),
+             shape = 4, color = "red", size = 1.5, stroke = 1.5)
+
+
+loglik_x %>% 
+  ggplot(aes(x = lambda, y = loglik))+
+  geom_line()+
+  geom_point(aes(x = loglik_x[n,1], y = loglik_x[n,2]),
+             shape = 4, size = 5)+
+  annotate(geom = "text",
+           x = loglik_x[n,1], y = loglik_x[n,2]+10,
+           label = paste0("lambda = ",loglik_x[n,1])) +
+  theme_bw()
+```
+

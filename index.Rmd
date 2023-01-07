@@ -1,0 +1,95 @@
+--- 
+title: "Introduction to GLMM Using R"
+author: "Tsubasa Yamaguchi"
+date: "`r Sys.Date()`"
+output: 
+  bookdown::gitbook:
+    split_bib: yes  
+    number_sections: true    
+    css: custom_style.css   
+site: bookdown::bookdown_site  
+output_dir: "docs"  
+documentclass: book  
+header-includes:
+   - \usepackage{amsmath}
+   - \usepackage{nccmath}
+biblio-style: jecon    
+bibliography: GLMM.bib   
+link-citations: yes
+csl: apa.csl
+---
+
+```{r, echo = FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE,
+                      warning = FALSE, fig.align = "center",
+                      cache = TRUE)
+```
+
+# 本稿の目的 {-}   
+## なぜGLMやGLMMについて学ぶ必要があるのか？ {-}   
+近年、生態学や動物行動学をはじめ、複雑な生物学のデータを解析する手法が発達してきている[@Harrison2018]。これは、従来のシンプルな統計手法(e.g. t検定、$\chi ^2$検定、線形回帰など)では、これらの分野で扱う複雑なデータを分析するには不適切であることが分かってきているからである。様々な分析のなかでも、**一般化線形モデル(GLM)**や**一般化線形混合モデル(GLMM)**と呼ばれる分析手法は、2000年代以降急速に用いられるようになってきた[@Bolker2009; @Zuur2009; @Ohigashi2010; @Fox2015]。図\@ref(fig:fig-journal)は、Google Scholarを用いて、動物行動学・生態学・霊長類学の分野で著名な学術雑誌において、"GLM"または"GLMM"という単語が出てきた論文の割合を示したものである(2023年1月7日時点)。私たちが普段読む/投稿することが多いこれらの雑誌においても、2000年代以降これらの分析手法が数多く使われるようになってきたことが示唆される。
+
+```{r fig-journal, echo = FALSE, fig.dim = c(15,7), fig.cap = "GLMまたはGLMMという単語を含む論文の割合"}
+library(tidyverse)
+library(lemon)
+library(ggsci)
+
+## データのインポート
+journal <- read_csv("data/journal.csv") %>% 
+  mutate(journal = fct_relevel(journal,c("Animal","BES","Behaviour","Ethology","AJP","IJP","Prim","Folia"))) %>% 
+  mutate(text = str_c(include,"/",total))
+
+labeller <- as_labeller(c("Prim" = "Primates",
+                          "Folia"="Folia Primatologica",
+                          "Animal" = "Animal Behaviour",
+                          "BES" = "Behavioral Ecology and Sociobiology",
+                          "AJP" = "American Journal of Primatology",
+                          "IJP" = "International Journal of Primatology",
+                          "Ethology" = "Ethology",
+                          "Behaviour" = "Behaviour"))
+
+
+## グラフの描画
+journal %>% 
+  filter(journal != "Folia"&
+         journal != "Prim") %>% 
+  ggplot(aes(x = year, y = rate, group = journal))+
+  geom_point(aes(color = journal), size = 5, shape = 5, stroke = 1)+
+  geom_line(aes(color = journal), linewidth = 1)+
+  theme_bw(base_size = 18)+
+  theme(aspect.ratio=0.6,
+        legend.position = c(0.25,0.7),
+        axis.text.x = element_text(angle=-30,
+                                   size = 15),
+        legend.text = element_text(size = 15),
+        legend.spacing.y = unit(5,"mm"))+
+  scale_y_continuous(breaks = seq(0,0.5,0.1))+
+   guides(color = guide_legend(byrow = TRUE))+
+  labs(x = "",
+       y = "",
+       color = "")+
+  scale_color_nejm(label = labeller)+
+  coord_cartesian(ylim = c(0,0.4))
+```
+
+このことから、<u>自分が適切にデータ分析を行うためだけでなく、他の研究者による論文を適切に理解するためにもGLM/GLMMについて理解することは重要</u>であるといえる。しかし、多くの研究者は分析について適切に理解しないままその論文を引用したり、自身の研究に用いてしまっているのが現状ではないだろうか。分析について理解できていなければ、仮に論文の著者が分析を誤用していたり、分析結果を誤って解釈していたりしても(実際にそのような論文はある)、論文の内容を鵜呑みしてしまうことになりかねない。これは大きな問題である。本稿の目的は、**GLM/GLMMが用いられた分析結果について適切に理解できるようになる**ことに加え、可能であれば**Rを用いて自身のデータについてもGLM/GLMMを用いた分析ができるようになる**ことである。  
+
+## 本稿で扱う内容 {-}  
+本稿で扱うのは、以下の内容である。
+
+- 社会ネットワーク分析の概要(第\@ref(c1)章)
+- rawデータからマトリックス(隣接行列)を作成する方法(第\@ref(c2)章)  
+- 各ネットワーク指標の解説と算出法(第\@ref(c3)章)   
+- ネットワークデータでの統計分析（第\@ref(c4)章)  
+
+参考にしたのは主に以下の文献である。  
+なお、本稿の作成に使用したファイルとRのコードは筆者の[Github](https://github.com/TsubasaYamaguchi-jinrui/GLMM_nyumon)ですべて閲覧できる。  
+
+- 馬場真哉(2015) 平均・分散から始める一般化線形モデル入門 [@Baba2015]  
+- 粕谷英一(2012) 一般化線形モデル [@Kasuya2012]  
+- 馬場真哉(2019) RとStanではじめるベイズ統計モデリングによるデータ分析 [@Baba2019]    
+- 松浦健太郎(2016) StanとRでベイズ統計モデリング [@Matsuura2016]   
+- 
+
+
+

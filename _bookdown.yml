@@ -1,7 +1,7 @@
 book_filename: "GLMM_nyumon"  
 rmd_files:                    
   - index.Rmd
-  - Chapter0.Rmd
+  - Chapter1.Rmd
   - sessioninfo.Rmd
 language:
   label:

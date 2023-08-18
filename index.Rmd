@@ -1,5 +1,5 @@
 --- 
-title: "Introduction to GLMM Using R"
+title: "Rを用いて基礎から応用まで学ぶGLM・GLMM入門"
 author: "Tsubasa Yamaguchi"
 date: "`r Sys.Date()`"
 output: 
@@ -25,11 +25,13 @@ knitr::opts_chunk$set(echo = TRUE, message = FALSE,
                       cache = TRUE)
 ```
 
-# 本稿の目的 {-}   
-## なぜGLMやGLMMについて学ぶ必要があるのか？ {-}   
-近年、生態学や動物行動学をはじめ、複雑な生物学のデータを解析する手法が発達してきている[@Harrison2018]。これは、従来のシンプルな統計手法(e.g. t検定、$\chi ^2$検定、線形回帰など)では、これらの分野で扱う複雑なデータを分析するには不適切であることが分かってきているからである。様々な分析のなかでも、**一般化線形モデル(GLM)**や**一般化線形混合モデル(GLMM)**と呼ばれる分析手法は、2000年代以降急速に用いられるようになってきた[@Bolker2009; @Zuur2009; @Ohigashi2010; @Fox2015]。図\@ref(fig:fig-journal)は、Google Scholarを用いて、動物行動学・生態学・霊長類学の分野で著名な学術雑誌において、"GLM"または"GLMM"という単語が出てきた論文の割合を示したものである(2023年1月7日時点)。私たちが普段読む/投稿することが多いこれらの雑誌においても、2000年代以降これらの分析手法が数多く使われるようになってきたことが示唆される。
+# 0 本稿の目的 {-}   
+## 0.1 なぜGLMやGLMMについて学ぶ必要があるのか？ {-}   
+近年、生態学や動物行動学をはじめ、複雑な生物学のデータを解析する手法が発達してきています[@Harrison2018]。これは、従来のシンプルな統計手法(e.g. t検定、$\chi ^2$検定、相関検定、ウィルコクソンの検定など)では、これらの分野で扱う複雑なデータを分析するには不適切であることが分かってきているからです。  
 
-```{r fig-journal, echo = FALSE, fig.dim = c(15,7), fig.cap = "GLMまたはGLMMという単語を含む論文の割合"}
+様々な分析のなかでも、**線形モデル(linear model)**や**線形混合モデル(linear mixed model)**、およびこれらを様々な分布のデータに拡張した**一般化線形モデル(generalized linear model)**や**一般化線形混合モデル(generalized linear mixed model)**などは2000年代以降急速に用いられるようになってきています[@Bolker2009; @Zuur2009; @Ohigashi2010; @Fox2015]。図\@ref(fig:fig-journal)は、Google Scholarを用いて、動物行動学・生態学・霊長類学の分野で著名な学術雑誌において、"linear model"、"linear mixed model(LMM)"、"generalized linear model (GLM)"、"generalized linear mixed model (GLMM)"、という単語が出てきた論文の割合を示したものです(2023年8月18日時点)。私たちが普段読む/投稿することが多いこれらの雑誌においても、2000年代以降これらの分析手法が数多く使われるようになってきたことが示唆されます(特に行動学系では)。同様の分析に異なる名称が用いられていることもある(e.g., "ANOVA"、"ANCOVA"、"linear regression"など)ことを考慮すると、実際の割合はもっと高くなるはずです。  
+
+```{r fig-journal, echo = FALSE, fig.dim = c(15,7), fig.cap = "GLMやGLMMなどの単語を含む論文の割合"}
 library(tidyverse)
 library(lemon)
 library(ggsci)
@@ -64,32 +66,52 @@ journal %>%
         legend.text = element_text(size = 15),
         legend.spacing.y = unit(5,"mm"))+
   scale_y_continuous(breaks = seq(0,0.5,0.1))+
-   guides(color = guide_legend(byrow = TRUE))+
+  guides(color = guide_legend(byrow = TRUE))+
   labs(x = "",
        y = "",
        color = "")+
   scale_color_nejm(label = labeller)+
-  coord_cartesian(ylim = c(0,0.4))
+  coord_cartesian(ylim = c(0,0.55))
+
+ggsave("image/journal.png", width = 450, height = 170, dpi = 600, units = "mm")
 ```
 
-このことから、<u>自分が適切にデータ分析を行うためだけでなく、他の研究者による論文を適切に理解するためにもGLM/GLMMについて理解することは重要</u>であるといえる。しかし、多くの研究者は分析について適切に理解しないままその論文を引用したり、自身の研究に用いてしまっているのが現状ではないだろうか。分析について理解できていなければ、仮に論文の著者が分析を誤用していたり、分析結果を誤って解釈していたりしても(実際にそのような論文はある)、論文の内容を鵜呑みしてしまうことになりかねない。これは大きな問題である。本稿の目的は、**GLM/GLMMが用いられた分析結果について適切に理解できるようになる**ことに加え、可能であれば**Rを用いて自身のデータについてもGLM/GLMMを用いた分析ができるようになる**ことである。  
+このことは、もはやこれらの分析についてきちんと理解しなければ、多くの論文の分析結果を適切に解釈できないということを示します。分析への理解が不十分であれば、仮に論文の著者が分析を誤用していたり、分析結果を誤って解釈していたりしても(実際にそのような論文はある)、論文の内容を鵜呑みして引用してしまうことになりかねません。これは大きな問題です。  
 
-## 本稿で扱う内容 {-}  
-本稿で扱うのは、以下の内容である。
+またこうした流れの中で、私たち自身も論文を執筆する際に、これらの分析を使用することを求められることがますます増えていくのではないかと予想されます。そのとき、GLMやGLMMについてあまり理解しないままに分析を行えば、自身のデータに対して不適切な分析を行ってしまったり、分析結果を誤って解釈してしまったりするかもしれません。  
 
-- 社会ネットワーク分析の概要(第\@ref(c1)章)
-- rawデータからマトリックス(隣接行列)を作成する方法(第\@ref(c2)章)  
-- 各ネットワーク指標の解説と算出法(第\@ref(c3)章)   
-- ネットワークデータでの統計分析（第\@ref(c4)章)  
+以上のことから、本稿は**GLM/GLMMが用いられた分析結果について適切に理解できるようになる**ことに加え、可能であれば**Rを用いて自身のデータについてもGLM/GLMMを用いた分析ができるようになる**ことを目標に作成されました。私自身まだ理解が及ばないところもありますが、本稿を読んで皆様のお役に少しでも立てれば幸いです。  
 
-参考にしたのは主に以下の文献である。  
-なお、本稿の作成に使用したファイルとRのコードは筆者の[Github](https://github.com/TsubasaYamaguchi-jinrui/GLMM_nyumon)ですべて閲覧できる。  
+## 0.2 本稿で扱う内容 {-}  
+本稿で扱うのは、以下の内容です。
+
+- 確率と統計の基本  
+- 統計モデリングとは何か  
+- 一般化線形モデル(GLM)  
+- 一般化線形混合モデル(GLMM)  
+- 結果の診断と統計検定  
+- モデル選択  
+- 発展的なモデル(ゼロ過剰モデル、ハードルモデル)  
+
+参考にしたのは主に以下の文献です。特に日本語で示した文献は、GLMやGLMMの入門としてはうってつけだと思います。    
+なお、本稿の作成に使用したファイルとRのコードは筆者の[Github](https://github.com/TsubasaYamaguchi-jinrui/GLMM_nyumon)ですべて閲覧できます。  
 
 - 馬場真哉(2015) 平均・分散から始める一般化線形モデル入門 [@Baba2015]  
 - 粕谷英一(2012) 一般化線形モデル [@Kasuya2012]  
+- Gelman et al. (2020) Regression and Other Stories [@Gelman2020]  
+- Fox et al. (2015) Ecological Statistics: Contemporary Theory and Application [@Fox2015]  
+- Dunn & Smyth (2018) Generalized Linear Models with Examples in R [@Dunn2018]  
 - 馬場真哉(2019) RとStanではじめるベイズ統計モデリングによるデータ分析 [@Baba2019]    
 - 松浦健太郎(2016) StanとRでベイズ統計モデリング [@Matsuura2016]   
-- 
+- McElreath, R (2020) Statistical Rethinking [@Mac2020]  
 
 
+本稿はRの基本操作と`tidyverse`パッケージによるデータハンドリングができることを前提としています。`tidyverse`パッケージを用いたデータ処理については、以下の書籍などを参照してください。  
 
+- R for Data Science [@Wickham2016]  
+[電子書籍](https://r4ds.had.co.nz/), [日本語](https://www.oreilly.co.jp/books/9784873118147/)  
+
+- R Graphics Coocbook 2nd Edition [@Chang2018]   
+[電子書籍](https://r-graphics.org/), [日本語](https://www.oreilly.co.jp/books/9784873118925/)  
+
+- RユーザのためのRstudio[実践]入門~tidyverseによるモダンな分析フローの世界 改訂2版 [@Matsumura2021] [出版社サイト](https://gihyo.jp/book/2021/978-4-297-12170-9)  

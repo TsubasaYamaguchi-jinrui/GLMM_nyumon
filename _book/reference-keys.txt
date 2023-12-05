@@ -9,6 +9,13 @@ fig:ex-binom
 fig:ex-bb
 fig:ex-pois
 fig:ex-nb
+eq:glm-norm
+eq:glm-pois-identity
+eq:glm-pois-log
+eq:glm-binom
+tab:tab-link
+eq:glm-pois-ex
+fig:female-in
 c1
 本章の内容
 データ分析の二つの目的
@@ -30,3 +37,7 @@ studentのt分布
 ベータ二項分布
 ポワソン分布
 負の二項分布
+一般化線形モデルの基礎
+一般化線形モデルとは
+glmの3要素
+glmの模式図

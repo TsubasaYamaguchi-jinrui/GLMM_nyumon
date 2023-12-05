@@ -1,200 +1,95 @@
+# 一般化線形モデルの基礎  
+## 一般化線形モデルとは  
+一般化線形モデル(GLM)は興味の対象である変数(= **応答変数**)が、影響を与えると想定される他の変数(= **説明変数**)とどのように関連しているのかを調べる分析です。「**一般化**」とつくのは、GLMがモデルの確率過程として正規分布以外の分布も扱うことができるからです。    
 
-```{r}
-set.seed(123)
+## GLMの3要素  
+GLMは一般に次の3要素で表されます。    
 
-N <- 50
-x <- rnorm(N, 10, 1.5)
-y <- rpois(50, exp(2.5 + 0.03*x))
+1. **確率分布**    
+「応答変数がどのような確率過程で得られているのか」を記述するために必要な部分です。確率分布の詳細については、第\@ref(c3)章を参照。応答変数がどのような種類のデータかによって異なる分布を用います。例えば、正の値も負の値も取る連続値(e.g., 気温)ならば正規分布、正の値のみをとる連続値(e.g., 体重)ならばガンマ分布、上限のない正の整数値(e.g., 何かの発生回数)ならばポワソン分布、上限のある整数値や割合データ(e.g., 10回コインを投げて表が出る回数)ならば二項分布を用います。     
 
-data <- data.frame(x = x,
-                   y = y)
-```
+ある確率分布から確率変数が得られていることを表現するとき、通常$\sim$という記号を使います。例えば、応答変数$y_i$が平均$\mu_i$、標準偏差$\sigma$の正規分布から得られていると仮定するとき、以下のように書けます。$i$は何番目のデータであるかを表します。    
+
+$$
+y_i \sim Normal(\mu_i, \sigma) \;\;\;(i = 1,2,\dots, N)
+$$
+
+2. **線形予測子**    
+線形予測子とは、説明変数の線形結合したものです。$x_1, x_2, \dots x_n$を説明変数とするとき以下のように表されます。$\beta_0$は**切片**(intercept)、$\beta_1, \dots \beta_n$は**回帰係数**(coefficient)と呼ばれます。     
+
+$$
+\beta_0 + \beta_1 \times x_1 + \beta_2 \times x_2 + \dots \beta_n \times x_n 
+$$
+
+3. **リンク関数**    
+応答変数と線形予測子を関連付けるための関数を**リンク関数**と呼びます。例えば、確率分布の期待値$\mu_i$と線形予測子をリンク関数$g()$で関連付けるとき、以下のように書きます。  
+
+$$
+g(\mu_i) = \beta_0 + \beta_1x_{1i} + \beta_2x_{2i} + \cdots
+$$
+
+リンク数の必要性を理解するためには、実際に様々な分布で統計モデルを書いてみるのが一番です。正規分布の場合、通常リンク関数には**恒等関数**が用いられます。聞きなれないかもしれませんが、恒等関数は入力した値に何も変換を施さない関数です。つまり、正規分布を用いたモデルでは、期待値$\mu_i$と線形予測子の関係と、応答変数$y_i$が得られる確率過程は以下のように書けます(\@ref(eq:glm-norm))。    
 
 $$
 \begin{aligned}
-
-\mu_i &= \beta_0 + \beta_1x_i \\  
-y_i &\sim Normal(\mu_i, \sigma^2)
-
+&y_i \sim Normal(\mu_i, \sigma)\\
+&\mu_i = \beta_0 + \beta_1x_{1i} + \beta_2x_{2i} + \cdots　
 \end{aligned}
+(\#eq:glm-norm)
 $$
 
+これは問題がないでしょう。なぜなら正規分布は$-\infty < y_i < \infty$の値をとることができるので、$\mu_i$はどのような値でも取ることができるからです。  
 
-```{r}
-r <- lm(y ~ x, data = data)
+しかし、他の分布では話が変わってきます。ここではポワソン分布を用いたモデルを考えてみましょう。例えば、期待値$\lambda$と線形予測子を恒等関数で関連付けるとき、以下のように書けます(\@ref(eq:glm-pois-identity)))。  
 
-fit <- estimate_expectation(r,
-          data = data.frame(x=seq(min(x)-0.5,max(x)+0.5,by=0.01)))
+$$
+\lambda_i = \beta_0 + \beta_1x_{1i} + \beta_2x_{2i} + \cdots (\#eq:glm-pois-identity)
+$$
 
-data %>% 
-  ggplot(aes(x = x, y = y))+
-  geom_point()+
-  geom_line(data = fit,
-            aes(y = Predicted))+
-  geom_ribbon(data = fit,
-              aes(ymin = CI_low, ymax = CI_high, 
-                  y = Predicted),
-              alpha = 0.3)+
-  theme_bw()+
-  theme(aspect.ratio = 1)
-```
-
-```{r}
-r_pois <- glm(y ~ x, 
-              family = poisson(link = "log"),
-              data = data)
-
-fit_pois <- estimate_expectation(r_pois,
-          data = data.frame(x=seq(min(x)-0.5,max(x)+0.5,by=0.01)))
-
-data %>% 
-  ggplot(aes(x = x, y = y))+
-  geom_point()+
-  geom_line(data = fit_pois,
-            aes(y = Predicted))+
-  geom_ribbon(data = fit_pois,
-              aes(ymin = CI_low, ymax = CI_high, 
-                  y = Predicted),
-              alpha = 0.3)+
-  theme_bw()+
-  theme(aspect.ratio = 1)
-
-summary(r_pois)
-```
-
-DHARMaパッケージでパラメトリックブートストラップ法による尤度比検定ができる。  
-```{r}
-r_pois_null <- glm(y ~ 1, 
-              family = poisson(link = "log"),
-              data = data)
-
-library(DHARMa)
-
-set.seed(123)
-out = simulateLRT(r_pois_null,r_pois, n = 1000)
-```
-
-
-```{r}
-set.seed(123)
-get.dd <- function(d)
-{
-  #dのデータの数
-  n.sample <- nrow(d)
-  #yの平均
-  y.mean <- exp(r_pois_null$coefficients[[1]])
-  #n.sampleだけ乱数発生
-  d$y.rnd <- rpois(n.sample, lambda = y.mean)
-  fit.null.rnd <- glm(y.rnd ~ 1, data = d, family = poisson)
-  fit.x.rnd <- glm(y.rnd ~ x, data = d, family = poisson)
-  #逸脱度の差
-  fit.null.rnd$deviance - fit.x.rnd$deviance
-}
-pb <- function(d, n.bootstrap)
-{
-  #get.ddをn.bootstrap回実施(回数を指定)
-  replicate(n.bootstrap, get.dd(d))
-}
-
-#1000回シミュレーション
-dd12 <- pb(data, n.bootstrap = 1000)
-summary(dd12)
-
-sum(dd12 > r_pois_null$deviance-r_pois$deviance)/1000
-```
-
+一見これは問題がなさそうですが、<u>ポワソン分布において$\lambda$は正の値しか取り得ない</u>ことを思い出してください。このままだと上式(\@ref(eq:glm-pois-identity))の右辺はどのような値も取り得てしまい、モデルがうまく推定できません。そこで、通常ポワソン分布を用いるときは$log()$をリンク関数に用います(\@ref(eq:glm-pois-log))。こうすることで、<u>右辺は正の値しか取り得なくなり、うまくモデリングすることができます</u>。これはガンマ分布や負の二項分布を用いるときも同様です。    
 
 $$
 \begin{aligned}
-log(\lambda_i) &=  \beta_0 + \beta_1x_{i}\\
-y_i &\sim Poisson(\lambda_i)
+&y_i \sim Poisson(\lambda_i)\\
+&log(\lambda_i) = \beta_0 + \beta_1x_{1i} + \beta_2x_{2i} + \cdots
 \end{aligned}
+(\#eq:glm-pois-log)
 $$
 
-
-```{r}
-N <- 50
-sum <- 10
-
-set.seed(123)
-x <- rnorm(N, 9.5, 2.5)
-y <- rbinom(N, sum, inv_logit_scaled(-3.9 + 0.32*x))
-
-data <- data.frame(x=x,
-                   y=y,
-                   rate = y/sum,
-                   sum = 10)
-data %>% 
-  ggplot(aes(x = x, y = y))+
-  geom_point()
-```
+それでは、二項分布を用いる場合はどうでしょう。二項分布は通常パラメータ$p$と線形予測子を関係づけますが、$p$は0から1までの値しか取り得ません。そこで、通常二項分布を用いるモデルではロジット関数をリンク関数に用います(\@ref(eq:glm-binom))。こうすることで、右辺は0から1の値までしか取り得なくなります。    
 
 $$
 \begin{aligned}
-\mu_i &=  \beta_0 + \beta_1x_{i}\\
-y_i &\sim Normal(\mu_i, \sigma^2)
+&y_i \sim Binomial(p_i, n_i)\\
+&logit(p_i) = log \bigl( \frac{p_i}{1-p_i} \bigl) = \beta_0 + \beta_1x_{1i} + \beta_2x_{2i} + \cdots
 \end{aligned}
+(\#eq:glm-binom)
 $$
 
-```{r}
-r2 <- lm(rate ~ x, data = data)
+通常用いられるリンク関数をまとめたのが以下の表です(表\@ref(tab:tab-link))。  
+<br/>  
 
-fit2 <- estimate_expectation(r2,
-          data = data.frame(x=seq(min(x)-1.5,max(x)+0.5,by=0.01)))
-
-data %>% 
-  ggplot(aes(x = x, y = rate))+
-  geom_point()+
-  geom_line(data = fit2,
-            aes(y = Predicted))+
-  geom_ribbon(data = fit2,
-              aes(ymin = CI_low, ymax = CI_high, 
-                  y = Predicted),
-              alpha = 0.3)+
-  scale_x_continuous(breaks = seq(0,15,by = 2))+
-  coord_cartesian(xlim = c(3.8,15))+
-  theme_bw()+
-  theme(aspect.ratio = 1)
+```{r tab-link, echo = FALSE}
+data.frame(分布 = c("正規分布", "二項分布","ベータ二項分布", "ポワソン分布", "負の二項分布", "ガンマ分布"),
+           よく使うリンク関数 = c("identity","logit","logit","log","log", "log")) %>% 
+  kable(digits = 2, align = "c", caption = "各確率分布でよく使われるリンク関数") %>% 
+  kable_styling(font_size = 13, full_width = FALSE)   
 ```
+
+## GLMの模式図    
+以上の3つの要素を使えば、GLMがどのようにモデリングを行っているかを理解することができます。例えば、応答変数が$y_i$で説明変数が2つ($x_1$,$x_2$)がある場合を考えます。$y_i$が上限のない正の整数値をとり、リンク関数をlog関数とするとき、モデルは以下のように書けます。ただし、データ数がNのとき、$i = 1,2,\dots,N$です。これがGLMの**モデル式**です。      
 
 $$
 \begin{aligned}
-logit(p_i) &= log(\frac{p_i}{1-p_i})
+&y_i \sim Poisson(\lambda_i)\\
+&log(\lambda_i) = \beta_0 + \beta_1x_{1i} + \beta_2x_{2i} 
 \end{aligned}
+(\#eq:glm-pois-ex)
 $$
 
-$$
-\begin{aligned}
-logit(p_i)  &= log(\frac{p_i}{1-p_i}) =  \beta_0 + \beta_1x_{i}\\
-\therefore p_i &= \frac{1}{1 + exp\lbrace-(\beta_0 + \beta_1x_{i})\rbrace}\\
-\\
-y_i &\sim Binomial(10, p_i)
-\end{aligned}
-$$
+これを模式的に書くとすると、以下のようになります。モデルでは、各$i$番目の説明変数($x_{1i},x_{2i}$)ごとに$\lambda_i$の値が決まり、その$\lambda_i$をパラメータに持つポワソン分布から応答変数$y_i$が得られ、それを$N$番目までやることでデータが得られた、と仮定していることになります。  
 
-
-```{r}
-r2_binom <- glm(cbind(y, 10-y) ~ x,
-                 family = binomial(link = "logit"),
-                 data = data)
-
-fit2_binom <- estimate_expectation(r2_binom,
-          data = data.frame(x=seq(min(x)-1.5,max(x)+0.5,by=0.01)))
-
-data %>% 
-  ggplot(aes(x = x, y = rate))+
-  geom_point()+
-  geom_line(data = fit2_binom,
-            aes(y = Predicted))+
-  geom_ribbon(data = fit2_binom,
-              aes(ymin = CI_low, ymax = CI_high, 
-                  y = Predicted),
-              alpha = 0.3)+
-  scale_x_continuous(breaks = seq(0,15,by = 2))+
-  coord_cartesian(xlim = c(3.8,15))+
-  theme_bw()+
-  theme(aspect.ratio = 1)
+```{r female-in, out.width = "100%", fig.align = "center", echo = FALSE, fig.cap = "GLMの模式図"}
+knitr::include_graphics("image/GLM_image.png")
 ```
-
-
 

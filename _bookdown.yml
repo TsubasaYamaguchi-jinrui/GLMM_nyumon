@@ -1,4 +1,5 @@
 book_filename: "GLMM_nyumon"  
+output_dir: "docs" 
 rmd_files:                    
   - index.Rmd
   - Chapter0.Rmd

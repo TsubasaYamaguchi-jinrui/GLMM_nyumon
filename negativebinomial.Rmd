@@ -1,0 +1,227 @@
+# 負の二項分布モデル  
+ポワソン分布は、「ある一定の時間にある事象が発生する回数($x$)を表す確率分布」である。たとえば、1年間に自動車事故が発生する回数はポワソン分布に従うとされます。二項分布と違い、ポワソン分布は回数に上限がないことに注意が必要(事故は何回でも起こりうる)。  
+
+ある事象が一定期間に起きる平均回数を$\lambda$とするとき、その事象が$x$回生じる確率($P(x)$)は以下のようになる(覚える必要はないです)。  
+
+$$
+P(x) = \frac{\lambda^x}{x!}e^{-\lambda} \quad (x \geq 0)
+$$
+
+このように、ポワソン分布はたったひとつのパラメータ$\lambda$によって形が決まる。**ポワソン分布の平均と分散はいずれも**$\lambda$**となる。**  
+
+$\lambda = 5.6$の時のポワソン分布は以下のようになる。  
+```{r, echo = FALSE, fig.dim = c(4,4)}
+## xは0から10までとりうる
+x <- seq(0,15,by=1)
+
+## それぞれのxの値を取りうる確率  
+p_x <- dpois(x, 5.6)
+
+## 作図  
+data.frame(x = x,
+           p_x = p_x) %>% 
+  ggplot(aes(x = x, y = p_x))+
+  geom_col()+
+  theme_bw(base_size = 12)+
+  theme(aspect.ratio = 1,
+        axis.title.y = element_text(angle=0,
+                                    vjust = 0.5))+
+  labs(y = "x\n回\n事\n象\nが\n生\nじ\nる\n確\n率")
+```
+
+## 負の二項分布  
+しかし、実際にGLMMなどのモデリングを行ってパラメータ$\lambda$が推定されたとき、実際のデータの分散がそれよりも大きくなってしまうことがある。これを**過分散**という。  
+
+ポワソン分布モデルを用いたときに生じる過分散に対処する方法の1つが**負の二項分布**モデルを用いることである。  
+
+### ガンマ分布とは  
+負の二項分布は、ポワソン分布の期待値$\lambda$が共通の**ガンマ分布**から得られると仮定する**混合分布**である。ガンマ分布は2つのパラメータ$\mu$と$\phi$を用いて以下のように表せる。なお、$\Gamma()$はガンマ関数である。ガンマ関数の期待値は$\mu$、分散は$\frac{\mu^2}{\phi}$である。      
+<br />  
+
+$$
+Gamma(x|\mu,\phi) = \frac{\Bigl(\frac{\phi}{\mu}\Bigl)^\phi}{\Gamma(\phi)} x^{\phi-1} exp \bigl(\frac{\phi x}{\mu} \bigl)
+$$
+
+様々なガンマ分布を書いてみると以下のようになる。なお、Rに実装されているガンマ関数は2つのパラメータ$\alpha( = \phi)$と$\beta(=\frac{\phi}{\mu})$を用いて定義される。$\alpha$は`shape`パラメータ、$\beta$は`rate`パラメータという。    
+
+```{r gamma, fig.height = 5, fig.cap = "様々なパラメータのベータ分布"}
+## μ、φからα、βを得る関数。
+transgamma <- function(mu, phi) {
+  a <- phi
+  b <- phi/mu
+  return(list(a = a, b = b))
+}
+
+tidyr::crossing(mu = c(1, 2, 3, 5),
+                phi = c(1, 3, 5, 9, 15)) %>% 
+   tidyr::expand(nesting(mu,phi), x = seq(0,20,length.out=1000)) %>% 
+   mutate(density = dgamma(x, shape = phi, rate = transgamma(mu, phi)$b),
+          mu = factor(str_c("mu == ", mu),
+                      levels = c("mu == 1", "mu == 2", "mu == 3", "mu == 5")),
+          phi = factor(str_c("phi == ", phi),
+                         levels = c("phi == 1", 
+                                    "phi == 3", "phi == 5", "phi == 9", "phi == 15"))) %>% 
+   ggplot(aes(x=x, y = density))+
+   geom_area(fill = "navy")+
+   scale_x_continuous(breaks = seq(0,20,2)) +
+   scale_y_continuous(NULL, labels = NULL) +
+   theme(axis.ticks.y = element_blank()) +
+   facet_grid(phi ~ mu, labeller = label_parsed,
+             scales = "free_y")
+```
+  
+### 負の二項分布モデル  
+負の二項分布はポワソン分布のパラメータ$\lambda$が期待値$\mu$、shape parameter$\phi$のガンマ分布から得られるとするものである。このとき、負の二項分布の期待値と分散は以下のようになる。パラメータ$\phi$によりポワソン分布よりも幅広い分散をとることができるため、過分散にうまく対処することができる。$\phi \rightarrow \infty$のとき、**負の二項分布はポワソン分布になる**。      
+
+- 期待値: $\mu$  
+- 分散: $\mu + \frac{\mu^2}{\phi}$    
+
+期待値5.6のポワソン分布と期待値5.6で様々な$\phi$をとる負の二項分布を比較したのが以下の図である。ベータ二項分布では二項分布よりも柔軟な分布をとりうることが分かる。$\theta$が大きくなるほど二項分布に近づく。    
+```{r, fig.height = 5, fig.cap = "二項分布と様々なθの値をとるベータ二項分布(ともに期待値4で試行回数は10)"}
+tidyr::crossing(mu = 5.6,
+                phi = c(0.5, 1, 1.5, 2, 3, 5, 7, "poisson")) %>% 
+   tidyr::expand(nesting(mu,phi), x = seq(0,15,by =1)) %>% 
+   mutate(density = ifelse(phi != "poisson",
+                           dnbinom(x, size = as.numeric(phi), mu = mu),
+                           dpois(x, lambda = mu)),
+          phi = ifelse(phi != "poisson",
+                         str_c("phi == ", phi), phi)) %>% 
+   mutate(phi = fct_relevel(phi, c("poisson", "phi == 7","phi == 5", 
+                                    "phi == 3","phi == 2","phi == 1.5", "phi == 1", "phi == 0.5"))) %>% 
+   ggplot(aes(x=x, y = density))+
+   geom_col(fill = "navy")+
+   scale_x_continuous("x", 
+                     breaks = seq(0,20,2)) +
+   scale_y_continuous(breaks = seq(0,0.5,0.1))+
+   labs(y = "x回成功する確率")+
+   theme(axis.ticks.y = element_blank(),
+        aspect.ratio = 1) +
+   facet_rep_wrap(~phi, labeller = label_parsed,
+                 ncol = 4,
+                 repeat.tick.labels = TRUE)
+```
+
+負の二項分布を用いたGLMMのモデル式は以下のようになる。なお、$\beta$は回帰係数、$\alpha$は切片、$x$が説明変数、$y$が応答変数、$n$が試行回数を表す。  
+
+$$
+\begin{aligned}
+  y_i &\sim Poisson(\lambda_i)\\
+  \lambda_i &\sim Gamma(\mu_i, \phi)\\
+  log(\mu_i) & =\alpha + \beta_1 \times x_{1i} + \beta_2 + x_{2i} + \cdots \\
+\end{aligned}
+$$
+
+RのGLMMでは、結果としてパラメータ$\phi$が推定されている(dispersion parameterとして推定されている値)。  
+
+## 
+
+例えば、ニホンザルを対象とした研究で            
+
+シミュレーションによって架空のデータを作成する。  
+```{r}
+set.seed(1234)
+N <- 200
+phi = 2.8
+
+data <- data.frame(x1 = rnorm(N, 15, 3.5),
+                   x2 = rbinom(N, 1, prob = 0.5)) %>% 
+  mutate(y = rnbinom(n = N, size = phi, 
+                     mu = exp(-1.0 + 0.19*x1 + 0.42*x2)),
+         id = 1:n())
+```
+
+
+```{r}
+data %>% 
+  mutate(x2 = as.factor(x2)) %>% 
+  ggplot(aes(x = x1, y = y))+
+  geom_point(aes(color = x2),
+             shape = 1,
+             size = 2)+
+  scale_y_continuous(breaks = seq(0,120,by = 10))+
+  theme_bw(base_size = 12)+
+  theme(aspect.ratio = 0.8)+
+  scale_color_nejm()
+```
+
+## ポワソン分布モデル  
+```{r}
+m_pois <- glmmTMB(y ~ x1 + x2,
+                   data = data,
+                   family = "poisson")
+```
+
+```{r}
+plot(simulateResiduals(m_pois))
+```
+
+```{r}
+model_parameters(m_pois)
+```
+
+```{r}
+tidyr::crossing(x1 = seq(5,26,0.1),
+                x2 = c(0,1),
+                N = 1:10000) %>% 
+  mutate(lambda = exp(fixef(m_pois)[[1]][[1]] + fixef(m_pois)[[1]][[2]]*x1 + fixef(m_pois)[[1]][[3]]*x2)) %>% 
+  mutate(pred = rpois(4220000, lambda = lambda)) %>% 
+  group_by(x1, x2) %>% 
+  summarise(predicted = mean(pred),
+            conf.low = quantile(pred, 0.025),
+            conf.high = quantile(pred, 0.975)) %>% 
+  mutate(x2 = as.factor(x2)) %>% 
+  ggplot(aes(x = x1))+
+  geom_ribbon(aes(y = predicted,
+                  ymin = conf.low,
+                  ymax = conf.high,
+                  fill = x2),
+              alpha = 0.3) +
+  geom_point(aes(y = y, color = x2),
+             size = 2,shape = 1,
+             data = data %>%mutate(x2 = as.factor(x2)))+
+  scale_color_nejm()+
+  scale_fill_nejm()+
+  theme_bw(base_size = 16)+
+  theme(aspect.ratio = 0.8)
+```
+
+
+```{r}
+m_pois_random <- glmmTMB(y ~ x1 + x2 + (1|id),
+                   data = data,
+                   family = "poisson")
+```
+
+```{r}
+plot(simulateResiduals(m_pois_random))
+```
+
+```{r}
+model_parameters(m_pois_random)
+```
+
+```{r}
+tidyr::crossing(x1 = seq(5,26,0.1),
+                x2 = c(0,1),
+                N = 1:10000) %>% 
+  mutate(mu = exp(fixef(m_negbinom)[[1]][[1]] + fixef(m_negbinom)[[1]][[2]]*x1 + fixef(m_negbinom)[[1]][[3]]*x2)) %>% 
+  mutate(pred = rnbinom(4220000, size =sigma(m_negbinom) ,mu = mu)) %>% 
+  group_by(x1, x2) %>% 
+  summarise(predicted = mean(pred),
+            conf.low = quantile(pred, 0.025),
+            conf.high = quantile(pred, 0.975)) %>% 
+  mutate(x2 = as.factor(x2)) %>% 
+  ggplot(aes(x = x1))+
+  geom_ribbon(aes(y = predicted,
+                  ymin = conf.low,
+                  ymax = conf.high,
+                  fill = x2),
+              alpha = 0.3) +
+  geom_point(aes(y = y, color = x2),
+             size = 2,shape = 1,
+             data = data %>%mutate(x2 = as.factor(x2)))+
+  scale_color_nejm()+
+  scale_fill_nejm()+
+  theme_bw(base_size = 16)+
+  theme(aspect.ratio = 0.8)
+```

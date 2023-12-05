@@ -115,3 +115,4 @@ ggsave("image/journal.png", width = 450, height = 170, dpi = 600, units = "mm")
 [電子書籍](https://r-graphics.org/), [日本語](https://www.oreilly.co.jp/books/9784873118925/)  
 
 - RユーザのためのRstudio[実践]入門~tidyverseによるモダンな分析フローの世界 改訂2版 [@Matsumura2021] [出版社サイト](https://gihyo.jp/book/2021/978-4-297-12170-9)  
+

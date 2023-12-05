@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="" xml:lang="">
+<head>
+
+  <meta charset="utf-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <title>2 確率分布の基礎 | Rを用いて基礎から応用まで学ぶGLM・GLMM入門</title>
+  <meta name="description" content="2 確率分布の基礎 | Rを用いて基礎から応用まで学ぶGLM・GLMM入門" />
+  <meta name="generator" content="bookdown 0.35 and GitBook 2.6.7" />
+
+  <meta property="og:title" content="2 確率分布の基礎 | Rを用いて基礎から応用まで学ぶGLM・GLMM入門" />
+  <meta property="og:type" content="book" />
+  
+  
+  
+
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="2 確率分布の基礎 | Rを用いて基礎から応用まで学ぶGLM・GLMM入門" />
+  
+  
+  
+
+<meta name="author" content="Tsubasa Yamaguchi" />
+
+
+<meta name="date" content="2023-12-05" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+  
+  
+<link rel="prev" href="c1.html"/>
+<link rel="next" href="実行環境.html"/>
+<script src="libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/fuse.js@6.4.6/dist/fuse.min.js"></script>
+<link href="libs/gitbook-2.6.7/css/style.css" rel="stylesheet" />
+<link href="libs/gitbook-2.6.7/css/plugin-table.css" rel="stylesheet" />
+<link href="libs/gitbook-2.6.7/css/plugin-bookdown.css" rel="stylesheet" />
+<link href="libs/gitbook-2.6.7/css/plugin-highlight.css" rel="stylesheet" />
+<link href="libs/gitbook-2.6.7/css/plugin-search.css" rel="stylesheet" />
+<link href="libs/gitbook-2.6.7/css/plugin-fontsettings.css" rel="stylesheet" />
+<link href="libs/gitbook-2.6.7/css/plugin-clipboard.css" rel="stylesheet" />
+
+
+
+
+
+
+
+
+<link href="libs/anchor-sections-1.1.0/anchor-sections.css" rel="stylesheet" />
+<link href="libs/anchor-sections-1.1.0/anchor-sections-hash.css" rel="stylesheet" />
+<script src="libs/anchor-sections-1.1.0/anchor-sections.js"></script>
+
+
+<style type="text/css">
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+    color: #aaaaaa;
+  }
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+code span.at { color: #7d9029; } /* Attribute */
+code span.bn { color: #40a070; } /* BaseN */
+code span.bu { color: #008000; } /* BuiltIn */
+code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+code span.ch { color: #4070a0; } /* Char */
+code span.cn { color: #880000; } /* Constant */
+code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+code span.dt { color: #902000; } /* DataType */
+code span.dv { color: #40a070; } /* DecVal */
+code span.er { color: #ff0000; font-weight: bold; } /* Error */
+code span.ex { } /* Extension */
+code span.fl { color: #40a070; } /* Float */
+code span.fu { color: #06287e; } /* Function */
+code span.im { color: #008000; font-weight: bold; } /* Import */
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+code span.op { color: #666666; } /* Operator */
+code span.ot { color: #007020; } /* Other */
+code span.pp { color: #bc7a00; } /* Preprocessor */
+code span.sc { color: #4070a0; } /* SpecialChar */
+code span.ss { color: #bb6688; } /* SpecialString */
+code span.st { color: #4070a0; } /* String */
+code span.va { color: #19177c; } /* Variable */
+code span.vs { color: #4070a0; } /* VerbatimString */
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+</style>
+
+<style type="text/css">
+  
+  div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+</style>
+<style type="text/css">
+/* Used with Pandoc 2.11+ new --citeproc when CSL is used */
+div.csl-bib-body { }
+div.csl-entry {
+  clear: both;
+}
+.hanging div.csl-entry {
+  margin-left:2em;
+  text-indent:-2em;
+}
+div.csl-left-margin {
+  min-width:2em;
+  float:left;
+}
+div.csl-right-inline {
+  margin-left:2em;
+  padding-left:1em;
+}
+div.csl-indent {
+  margin-left: 2em;
+}
+</style>
+
+<link rel="stylesheet" href="custom_style.css" type="text/css" />
+</head>
+
+<body>
+
+
+
+  <div class="book without-animation with-summary font-size-2 font-family-1" data-basepath=".">
+
+    <div class="book-summary">
+      <nav role="navigation">
+
+<ul class="summary">
+<li class="chapter" data-level="" data-path="index.html"><a href="index.html"><i class="fa fa-check"></i>0 本稿の目的</a>
+<ul>
+<li class="chapter" data-level="" data-path="index.html"><a href="index.html#なぜglmやglmmについて学ぶ必要があるのか"><i class="fa fa-check"></i>0.1 なぜGLMやGLMMについて学ぶ必要があるのか？</a></li>
+<li class="chapter" data-level="" data-path="index.html"><a href="index.html#本稿で扱う内容"><i class="fa fa-check"></i>0.2 本稿で扱う内容</a></li>
+</ul></li>
+<li class="chapter" data-level="" data-path="パッケージの読み込み.html"><a href="パッケージの読み込み.html"><i class="fa fa-check"></i>0. パッケージの読み込み</a></li>
+<li class="chapter" data-level="1" data-path="c1.html"><a href="c1.html"><i class="fa fa-check"></i><b>1</b> 統計モデリングとは</a>
+<ul>
+<li class="chapter" data-level="1.1" data-path="c1.html"><a href="c1.html#本章の内容"><i class="fa fa-check"></i><b>1.1</b> 本章の内容</a></li>
+<li class="chapter" data-level="1.2" data-path="c1.html"><a href="c1.html#データ分析の二つの目的"><i class="fa fa-check"></i><b>1.2</b> データ分析の二つの目的</a></li>
+<li class="chapter" data-level="1.3" data-path="c1.html"><a href="c1.html#統計モデリングの必要性"><i class="fa fa-check"></i><b>1.3</b> 統計モデリングの必要性</a></li>
+<li class="chapter" data-level="1.4" data-path="c1.html"><a href="c1.html#一般化線形モデル"><i class="fa fa-check"></i><b>1.4</b> 一般化線形モデル</a></li>
+</ul></li>
+<li class="chapter" data-level="2" data-path="c3.html"><a href="c3.html"><i class="fa fa-check"></i><b>2</b> 確率分布の基礎</a>
+<ul>
+<li class="chapter" data-level="2.1" data-path="c3.html"><a href="c3.html#確率分布とは"><i class="fa fa-check"></i><b>2.1</b> 確率分布とは</a></li>
+<li class="chapter" data-level="2.2" data-path="c3.html"><a href="c3.html#確率分布とパラメータ"><i class="fa fa-check"></i><b>2.2</b> 確率分布とパラメータ</a></li>
+<li class="chapter" data-level="2.3" data-path="c3.html"><a href="c3.html#連続変数と離散変数"><i class="fa fa-check"></i><b>2.3</b> 連続変数と離散変数</a></li>
+<li class="chapter" data-level="2.4" data-path="c3.html"><a href="c3.html#連続型の確率分布"><i class="fa fa-check"></i><b>2.4</b> 連続型の確率分布</a>
+<ul>
+<li class="chapter" data-level="2.4.1" data-path="c3.html"><a href="c3.html#正規分布"><i class="fa fa-check"></i><b>2.4.1</b> 正規分布</a></li>
+<li class="chapter" data-level="2.4.2" data-path="c3.html"><a href="c3.html#コーシー分布"><i class="fa fa-check"></i><b>2.4.2</b> コーシー分布</a></li>
+<li class="chapter" data-level="2.4.3" data-path="c3.html"><a href="c3.html#studentのt分布"><i class="fa fa-check"></i><b>2.4.3</b> Studentのt分布</a></li>
+<li class="chapter" data-level="2.4.4" data-path="c3.html"><a href="c3.html#ガンマ分布"><i class="fa fa-check"></i><b>2.4.4</b> ガンマ分布</a></li>
+<li class="chapter" data-level="2.4.5" data-path="c3.html"><a href="c3.html#ベータ分布"><i class="fa fa-check"></i><b>2.4.5</b> ベータ分布</a></li>
+</ul></li>
+<li class="chapter" data-level="2.5" data-path="c3.html"><a href="c3.html#離散型の確率分布"><i class="fa fa-check"></i><b>2.5</b> 離散型の確率分布</a>
+<ul>
+<li class="chapter" data-level="2.5.1" data-path="c3.html"><a href="c3.html#ベルヌーイ分布"><i class="fa fa-check"></i><b>2.5.1</b> ベルヌーイ分布</a></li>
+<li class="chapter" data-level="2.5.2" data-path="c3.html"><a href="c3.html#二項分布"><i class="fa fa-check"></i><b>2.5.2</b> 二項分布</a></li>
+<li class="chapter" data-level="2.5.3" data-path="c3.html"><a href="c3.html#ベータ二項分布"><i class="fa fa-check"></i><b>2.5.3</b> ベータ二項分布</a></li>
+<li class="chapter" data-level="2.5.4" data-path="c3.html"><a href="c3.html#ポワソン分布"><i class="fa fa-check"></i><b>2.5.4</b> ポワソン分布</a></li>
+<li class="chapter" data-level="2.5.5" data-path="c3.html"><a href="c3.html#負の二項分布"><i class="fa fa-check"></i><b>2.5.5</b> 負の二項分布</a></li>
+</ul></li>
+</ul></li>
+<li class="chapter" data-level="" data-path="実行環境.html"><a href="実行環境.html"><i class="fa fa-check"></i>実行環境</a></li>
+</ul>
+
+      </nav>
+    </div>
+
+    <div class="book-body">
+      <div class="body-inner">
+        <div class="book-header" role="navigation">
+          <h1>
+            <i class="fa fa-circle-o-notch fa-spin"></i><a href="./">Rを用いて基礎から応用まで学ぶGLM・GLMM入門</a>
+          </h1>
+        </div>
+
+        <div class="page-wrapper" tabindex="-1" role="main">
+          <div class="page-inner">
+
+            <section class="normal" id="section-">
+<div id="c3" class="section level1 hasAnchor" number="2">
+<h1><span class="header-section-number">2</span> 確率分布の基礎<a href="c3.html#c3" class="anchor-section" aria-label="Anchor link to header"></a></h1>
+<div id="確率分布とは" class="section level2 hasAnchor" number="2.1">
+<h2><span class="header-section-number">2.1</span> 確率分布とは<a href="c3.html#確率分布とは" class="anchor-section" aria-label="Anchor link to header"></a></h2>
+<p>前章(<a href="c1.html#c1">1</a>)において、統計モデルでは「データに確率モデルを当てはめて、現象の解釈や予測をおこなう」と書きました。確率モデルの記述に必要になってくるのが<strong>確率分布</strong>です。<strong>確率分布</strong>は、<strong>確率変数</strong>とそれが得られる確率との対応を表したものです。<strong>確率変数</strong>とは、確率的な法則に従って値がランダムに変化する値のことを表します。統計学では、データが確率的な過程によって得られると仮定するので、データは確率変数です。</p>
+<ul>
+<li>確率変数: 確率的な法則に従って値がランダムに変化する値(e.g., データ)<br />
+</li>
+<li>確率分布: <strong>確率変数</strong>とそれが得られる確率との対応を表したもの</li>
+</ul>
+</div>
+<div id="確率分布とパラメータ" class="section level2 hasAnchor" number="2.2">
+<h2><span class="header-section-number">2.2</span> 確率分布とパラメータ<a href="c3.html#確率分布とパラメータ" class="anchor-section" aria-label="Anchor link to header"></a></h2>
+<p>確率分布は<strong>パラメータ(母数)</strong>によって形が決まります。後述しますが、例えば正規分布はその期待値(=平均)<span class="math inline">\(\mu\)</span>と分散<span class="math inline">\(\sigma^2\)</span>によって形が決まります(図<a href="c3.html#fig:ex-normal">2.1</a>)。統計モデルでは、データから確率分布のパラメータを推定することになります。</p>
+<div class="figure" style="text-align: center"><span style="display:block;" id="fig:ex-normal"></span>
+<img src="GLMM_nyumon_files/figure-html/ex-normal-1.png" alt="様々な正規分布" width="672" />
+<p class="caption">
+図2.1: 様々な正規分布
+</p>
+</div>
+</div>
+<div id="連続変数と離散変数" class="section level2 hasAnchor" number="2.3">
+<h2><span class="header-section-number">2.3</span> 連続変数と離散変数<a href="c3.html#連続変数と離散変数" class="anchor-section" aria-label="Anchor link to header"></a></h2>
+<p>確率変数には<strong>連続型</strong>なものと<strong>離散型</strong>なものがあります。連続型の変数は、雑に言ってしまえば小数点以下をとることができ、計測を精密にすればするほどより細かい値が得られるものを指します(e.g., 体重、気温)。一方で離散型の変数は、<span class="math inline">\(1,2,3,\dots\)</span>のように小数点以下の値をとりえない量的な変数(e.g., 発生回数など)や質的な変数(e.g., オス/メス、大/中/小)のことを指します。</p>
+<ul>
+<li>連続型: 小数点以下をとることができる量的な変数(e.g., 体重、気温)<br />
+</li>
+<li>離散型: 小数点以下の値をとりえない量的な変数/質的変数(e.g., 発生回数、大/中/小)</li>
+</ul>
+<p>確率分布は<u>連続的か離散的かなど、確率変数がどのようなものかによって変わります</u>。以下では、実際にどのような確率分布があるか見ていきましょう。</p>
+</div>
+<div id="連続型の確率分布" class="section level2 hasAnchor" number="2.4">
+<h2><span class="header-section-number">2.4</span> 連続型の確率分布<a href="c3.html#連続型の確率分布" class="anchor-section" aria-label="Anchor link to header"></a></h2>
+<p>連続型の量的データを対象とする際には、連続型の確率分布を用います。確率分布は、<strong>確率密度関数</strong>によって表されます。確率密度関数を<span class="math inline">\(f(x)\)</span>とするとき、確率変数がa以上b以下の値をとる確率は以下のように表されます。確率密度関数は複雑な数式で表されますが、<u>覚える必要はありません</u>。</p>
+<p><span class="math display">\[
+\int_a^b f(x) dx
+\]</span></p>
+<p>それでは、実際に連続型の確率分布の例を見ていきましょう。</p>
+<div id="正規分布" class="section level3 hasAnchor" number="2.4.1">
+<h3><span class="header-section-number">2.4.1</span> 正規分布<a href="c3.html#正規分布" class="anchor-section" aria-label="Anchor link to header"></a></h3>
+<p>正規分布はガウス分布とも呼ばれ、平均値に対して左右対称な釣り鐘型になります。正規分布は先ほど触れたように期待値<span class="math inline">\(\mu\)</span>と分散<span class="math inline">\(\sigma^2\)</span>という2つのパラメータによって形が決まり、確率密度関数は以下のようになります。</p>
+<ul>
+<li>期待値: <span class="math inline">\(\mu\)</span><br />
+</li>
+<li>分散: <span class="math inline">\(\sigma^2\)</span></li>
+</ul>
+<p><span class="math display">\[
+P(x) = \frac{1}{\sqrt{2 \pi \sigma^2}}exp(-\frac{(x-\mu)^2}{2\sigma^2})
+\]</span></p>
+<p><span class="math inline">\(\mu\)</span>と<span class="math inline">\(\sigma^2\)</span>の値を変えたときの分布の形は図<a href="c3.html#fig:ex-normal">2.1</a>に示した通りです。</p>
+</div>
+<div id="コーシー分布" class="section level3 hasAnchor" number="2.4.2">
+<h3><span class="header-section-number">2.4.2</span> コーシー分布<a href="c3.html#コーシー分布" class="anchor-section" aria-label="Anchor link to header"></a></h3>
+<p>コーシー分布も左右対称な釣り鐘型になりますが、<strong>正規分布よりが裾の長い</strong>という特徴を持ちます。<span class="math inline">\(\mu\)</span>と<span class="math inline">\(\sigma\)</span>という2つのパラメータによって形が決まり、確率密度関数は以下のようになります。なお、コーシー分布は<u>期待値と分散が存在しない</u>特殊な分布です。</p>
+<p><span class="math display">\[
+P(x) = \frac{1}{\pi\sigma} \frac{1}{1 + ((x - \mu)/\sigma)^2}
+\]</span></p>
+<span class="math inline">\(\mu\)</span>と<span class="math inline">\(\sigma\)</span>の値を変えたときの分布の形は図<a href="c3.html#fig:ex-cauchy">2.2</a>の通りです。正規分布よりも裾が長いことが分かります。<br />
+
+<div class="figure" style="text-align: center"><span style="display:block;" id="fig:ex-cauchy"></span>
+<img src="GLMM_nyumon_files/figure-html/ex-cauchy-1.png" alt="様々なコーシー分布" width="672" />
+<p class="caption">
+図2.2: 様々なコーシー分布
+</p>
+</div>
+</div>
+<div id="studentのt分布" class="section level3 hasAnchor" number="2.4.3">
+<h3><span class="header-section-number">2.4.3</span> Studentのt分布<a href="c3.html#studentのt分布" class="anchor-section" aria-label="Anchor link to header"></a></h3>
+<p>Studentのt分布も前出の2つと同様に左右対称な釣り鐘型になります。<span class="math inline">\(\mu\)</span>、<span class="math inline">\(\sigma\)</span>、<span class="math inline">\(\nu\)</span>(自由度)という3つのパラメータがあり、確率密度関数は以下のようになります。なお、<span class="math inline">\(\Gamma()\)</span>はガンマ関数を表します。自由度<span class="math inline">\(\nu\)</span>の値によって分布の裾の長さが決まり、<span class="math inline">\(\nu = 1\)</span>のときはコーシー分布と、<span class="math inline">\(\nu = \infty\)</span>のときは正規分布と一致します。つまり、自由度が大きいほど裾の狭い分布になります。</p>
+<p><span class="math display">\[
+P(x) = \frac{\Gamma((\nu + 1)/2)}{\Gamma(\nu/2)\sqrt{pi\nu\sigma}} \Bigl(1 + \frac{1}{\nu} \bigl(\frac{x - \mu}{\sigma} \bigl)^2 \Bigl)^{-(x+1)/2}
+\]</span></p>
+<p>分布の期待値と分散は以下のようになります。</p>
+<ul>
+<li>期待値:<span class="math inline">\(\nu &gt; 1\)</span>ならば<span class="math inline">\(\mu\)</span>、それ以外は存在しない<br />
+</li>
+<li>分散: <span class="math inline">\(\nu &gt; 2\)</span>ならば<span class="math inline">\(\sigma^2\nu/(\nu-2)\)</span>、<span class="math inline">\(1 &lt; \nu \le 2\)</span>の場合は<span class="math inline">\(\infty\)</span>、それ以外は存在しない</li>
+</ul>
+パラメータを変化させたときの分布の変化は以下の通りです(図<a href="c3.html#fig:ex-t">2.3</a>)。なお、全て<span class="math inline">\(\mu = 0\)</span>です。なお、確率密度関数の算出は<a href="https://en.wikipedia.org/wiki/Location%E2%80%93scale_family">このページ</a>を参照しました。<br />
+
+<div class="figure" style="text-align: center"><span style="display:block;" id="fig:ex-t"></span>
+<img src="GLMM_nyumon_files/figure-html/ex-t-1.png" alt="様々なStudentのt分布" width="672" />
+<p class="caption">
+図2.3: 様々なStudentのt分布
+</p>
+</div>
+</div>
+<div id="ガンマ分布" class="section level3 hasAnchor" number="2.4.4">
+<h3><span class="header-section-number">2.4.4</span> ガンマ分布<a href="c3.html#ガンマ分布" class="anchor-section" aria-label="Anchor link to header"></a></h3>
+<p>ガンマ分布は正の値のみをとる連続型の量的データに用いられる分布です。<span class="math inline">\(\alpha\)</span>と<span class="math inline">\(\beta\)</span>という2つのパラメータをとり、確率密度関数は以下のようになります。<span class="math inline">\(\alpha\)</span>は形状(shape)パラメータ、<span class="math inline">\(\beta\)</span>はrateパラメータと呼ばれます。</p>
+<p><span class="math display">\[
+P(x) = \frac{\beta^\alpha}{\Gamma(\alpha)} x^{\alpha-1} exp(-\beta x)  
+\]</span></p>
+<p>分布の期待値と分散は以下のようになります。</p>
+<ul>
+<li>期待値: <span class="math inline">\(\alpha/\beta\)</span><br />
+</li>
+<li>分散: <span class="math inline">\(\alpha/\beta^2\)</span></li>
+</ul>
+<p>パラメータを変化させたときの分布の変化は以下の通りです(図<a href="c3.html#fig:ex-gamma">2.4</a>)。</p>
+<div class="figure" style="text-align: center"><span style="display:block;" id="fig:ex-gamma"></span>
+<img src="GLMM_nyumon_files/figure-html/ex-gamma-1.png" alt="様々なガンマ分布" width="672" />
+<p class="caption">
+図2.4: 様々なガンマ分布
+</p>
+</div>
+</div>
+<div id="ベータ分布" class="section level3 hasAnchor" number="2.4.5">
+<h3><span class="header-section-number">2.4.5</span> ベータ分布<a href="c3.html#ベータ分布" class="anchor-section" aria-label="Anchor link to header"></a></h3>
+<p>ベータ分布は0から1までの値のみをとる連続型の量的データに用いられる分布です。パラメータ<span class="math inline">\(\alpha\)</span>と<span class="math inline">\(\beta\)</span>を用いて表され、確率密度関数は以下の通りになります。なお、<span class="math inline">\(B()\)</span>はベータ関数です。</p>
+<p><span class="math display">\[
+P(x) = \frac{x^{\alpha-1} (1-x)^{\beta-1}}{B(\alpha, \beta)}
+\]</span></p>
+<p>期待値<span class="math inline">\(\bar{p}\)</span>とshape parameterの<span class="math inline">\(\theta\)</span>の2つのパラメータで定義され、確率密度関数は以下のようになります。なお、<span class="math inline">\(\theta = \alpha + \beta\)</span>は分布の広さを表し、<span class="math inline">\(\theta\)</span>が2より大きくなると分布は狭くなり、<span class="math inline">\(\theta\)</span>が2以下になると0と1に分布が集中していきます。<span class="math inline">\(\theta\)</span>が2のときは一様分布です。<br />
+<br /></p>
+<p>ベータ分布の期待値と分散は以下のようになります。</p>
+<ul>
+<li>期待値: <span class="math inline">\(\frac{\alpha}{\alpha + \beta}\)</span><br />
+</li>
+<li>分散: <span class="math inline">\(\frac{\alpha\beta}{(\alpha + \beta)^2(\alpha + \beta + 1)}\)</span></li>
+</ul>
+<p>様々なベータ分布を書いてみると以下のようになります(図<a href="c3.html#fig:ex-beta">2.5</a>)。</p>
+<div class="figure" style="text-align: center"><span style="display:block;" id="fig:ex-beta"></span>
+<img src="GLMM_nyumon_files/figure-html/ex-beta-1.png" alt="様々なベータ分布" width="672" />
+<p class="caption">
+図2.5: 様々なベータ分布
+</p>
+</div>
+</div>
+</div>
+<div id="離散型の確率分布" class="section level2 hasAnchor" number="2.5">
+<h2><span class="header-section-number">2.5</span> 離散型の確率分布<a href="c3.html#離散型の確率分布" class="anchor-section" aria-label="Anchor link to header"></a></h2>
+<p>離散型のデータを対象とする際には、離散型の確率分布を用います。離散型の確率分布は、<strong>確率質量関数</strong>によって表されます。確率質量関数を<span class="math inline">\(f(x)\)</span>とするとき、確率変数がa以上b以下の値をとる確率は以下のように表されます。確率質量関数も<u>覚える必要はありません</u>。</p>
+<p><span class="math display">\[
+\Sigma_{i = a}^bf(x_i)  
+\]</span></p>
+<p>それでは、実際に連続型の確率分布の例を見ていきましょう。</p>
+<div id="ベルヌーイ分布" class="section level3 hasAnchor" number="2.5.1">
+<h3><span class="header-section-number">2.5.1</span> ベルヌーイ分布<a href="c3.html#ベルヌーイ分布" class="anchor-section" aria-label="Anchor link to header"></a></h3>
+<p>ベルヌーイ分布は0/1、成功/失敗のように2つの結果しか持たない変数を対象とするときに用います。便宜上、一方の結果が得られる確率を成功確率(<span class="math inline">\(p\)</span>)と呼びます。成功を1、失敗を0とするとき、確率質量関数は以下のようになります。パラメータは成功確率<span class="math inline">\(p\)</span>のみです。</p>
+<p><span class="math display">\[
+\begin{aligned}
+&amp;P(x = 1) = p\\
+&amp;P(x = 0) = 1-p
+\end{aligned}
+\]</span></p>
+<p>分布の期待値と分散は以下のようになります。</p>
+<ul>
+<li>期待値: <span class="math inline">\(p\)</span><br />
+</li>
+<li>分散: <span class="math inline">\(p(1-p)\)</span></li>
+</ul>
+<p>様々なベルヌーイ分布を書いてみると以下のようになります(図<a href="c3.html#fig:ex-bern">2.6</a>)。</p>
+<div class="figure" style="text-align: center"><span style="display:block;" id="fig:ex-bern"></span>
+<img src="GLMM_nyumon_files/figure-html/ex-bern-1.png" alt="様々なベルヌーイ分布" width="672" />
+<p class="caption">
+図2.6: 様々なベルヌーイ分布
+</p>
+</div>
+</div>
+<div id="二項分布" class="section level3 hasAnchor" number="2.5.2">
+<h3><span class="header-section-number">2.5.2</span> 二項分布<a href="c3.html#二項分布" class="anchor-section" aria-label="Anchor link to header"></a></h3>
+<p>二項分布は、「結果が2通り(例えば、成功/失敗)である試行（<strong>ベルヌーイ試行</strong>）を独立に<span class="math inline">\(n\)</span>回行ったときの成功回数の分布を表した確率分布」です。つまり、上限のある整数値をとる変数や整数を用いた割合を表す変数に対して用いることができます。例えば、 コインを10回振ったときに表が出る回数は二項分布に従います。</p>
+<p>ベルヌーイ試行の成功確率を<span class="math inline">\(p\)</span>とするとき、<span class="math inline">\(n\)</span>回中<span class="math inline">\(x\)</span>回成功する確率<span class="math inline">\(p(x)\)</span>は以下のように書けます。これが二項分布の確率質量関数です。</p>
+<p><span class="math display">\[
+P(x) = _n C _x p^x(1-p)^{n-x} \quad (x \geq 0)
+\]</span></p>
+<p>分布の期待値と分散は以下のようになります。</p>
+<ul>
+<li>期待値: <span class="math inline">\(np\)</span><br />
+</li>
+<li>分散: <span class="math inline">\(np(1-p)\)</span></li>
+</ul>
+<p>様々な二項分布を書いてみると以下のようになります(図<a href="c3.html#fig:ex-binom">2.7</a>)。</p>
+<div class="figure" style="text-align: center"><span style="display:block;" id="fig:ex-binom"></span>
+<img src="GLMM_nyumon_files/figure-html/ex-binom-1.png" alt="様々な二項分布" width="672" />
+<p class="caption">
+図2.7: 様々な二項分布
+</p>
+</div>
+</div>
+<div id="ベータ二項分布" class="section level3 hasAnchor" number="2.5.3">
+<h3><span class="header-section-number">2.5.3</span> ベータ二項分布<a href="c3.html#ベータ二項分布" class="anchor-section" aria-label="Anchor link to header"></a></h3>
+<p>ベータ二項分布は、二項分布の期待値<span class="math inline">\(p\)</span>が共通の<strong>ベータ分布</strong>から得られると仮定する混合分布です。ベータ二項分布は二項分布よりも裾の広い分布をとることができるので、よりばらつきの大きいデータに対して用いることができます。</p>
+<p>確率質量関数はベータ分布のパラメータ<span class="math inline">\(\alpha\)</span>と<span class="math inline">\(\beta\)</span>、二項分布のパラメータ<span class="math inline">\(n\)</span>を用いて以下のように書けます。ベータ分布と同様に、<span class="math inline">\(\theta = \alpha + \beta\)</span>は分布の広さを表します。</p>
+<p><span class="math display">\[
+P(x) = \begin{pmatrix}
+       n\\x
+       \end{pmatrix}
+       \frac{B(x + \alpha, n - x + \beta)}{B(\alpha,\beta)}
+\]</span></p>
+<p>ベータ二項分布の期待値と分散は以下のようになります。RでGLMやGLMMを実行するときには、通常平均<span class="math inline">\(\mu\)</span>と<span class="math inline">\(\theta\)</span>を用いてモデル化され、推定が行われることが多いです。</p>
+<ul>
+<li>期待値: <span class="math inline">\(\mu = \frac{\alpha}{\alpha + \beta}\)</span><br />
+</li>
+<li>分散: <span class="math inline">\(n\frac{\alpha\beta}{(\alpha + \beta)^2} \frac{\alpha + \beta + n}{\alpha + \beta + 1}\)</span></li>
+</ul>
+<p><span class="math inline">\(\mu\)</span>と<span class="math inline">\(\theta\)</span>の値を変えたときの負の二項分布を描いたのが図(fog:ex-bb)です。 二項分布よりも様々な形をとることができることが分かります。</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="c3.html#cb2-1" tabindex="-1"></a>n <span class="ot">&lt;-</span> <span class="dv">10</span></span>
+<span id="cb2-2"><a href="c3.html#cb2-2" tabindex="-1"></a>x <span class="ot">&lt;-</span> <span class="fu">seq</span>(<span class="dv">0</span>,<span class="dv">10</span>,<span class="dv">1</span>)</span>
+<span id="cb2-3"><a href="c3.html#cb2-3" tabindex="-1"></a>mu <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="fl">0.2</span>,<span class="fl">0.5</span>,<span class="fl">0.7</span>)</span>
+<span id="cb2-4"><a href="c3.html#cb2-4" tabindex="-1"></a>theta <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="dv">1</span>,<span class="dv">4</span>,<span class="dv">7</span>)</span>
+<span id="cb2-5"><a href="c3.html#cb2-5" tabindex="-1"></a></span>
+<span id="cb2-6"><a href="c3.html#cb2-6" tabindex="-1"></a><span class="fu">crossing</span>(x,n, mu, theta) <span class="sc">%&gt;%</span> </span>
+<span id="cb2-7"><a href="c3.html#cb2-7" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">prob =</span> <span class="fu">dbetabinom</span>(x, <span class="at">size =</span> n, <span class="at">prob =</span> p, <span class="at">theta =</span> theta)) <span class="sc">%&gt;%</span> </span>
+<span id="cb2-8"><a href="c3.html#cb2-8" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">mu =</span> <span class="fu">str_c</span>(<span class="st">&quot;mu == &quot;</span>, mu),</span>
+<span id="cb2-9"><a href="c3.html#cb2-9" tabindex="-1"></a>         <span class="at">theta =</span> <span class="fu">str_c</span>(<span class="st">&quot;theta == &quot;</span>, theta)) <span class="sc">%&gt;%</span> </span>
+<span id="cb2-10"><a href="c3.html#cb2-10" tabindex="-1"></a>  <span class="fu">ggplot</span>(<span class="fu">aes</span>(<span class="at">x =</span> x, <span class="at">y =</span> prob))<span class="sc">+</span></span>
+<span id="cb2-11"><a href="c3.html#cb2-11" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">x =</span> <span class="st">&quot;x&quot;</span>, <span class="at">y =</span> <span class="st">&quot;P(x)&quot;</span>)<span class="sc">+</span></span>
+<span id="cb2-12"><a href="c3.html#cb2-12" tabindex="-1"></a>  <span class="fu">scale_x_continuous</span>(<span class="at">breaks =</span> <span class="fu">seq</span>(<span class="dv">0</span>,<span class="dv">15</span>,<span class="dv">2</span>))<span class="sc">+</span></span>
+<span id="cb2-13"><a href="c3.html#cb2-13" tabindex="-1"></a>  <span class="fu">geom_col</span>(<span class="at">fill =</span> <span class="st">&quot;lightblue&quot;</span>,</span>
+<span id="cb2-14"><a href="c3.html#cb2-14" tabindex="-1"></a>            <span class="at">color =</span> <span class="st">&quot;black&quot;</span>)<span class="sc">+</span></span>
+<span id="cb2-15"><a href="c3.html#cb2-15" tabindex="-1"></a>  <span class="fu">theme_bw</span>(<span class="at">base_size =</span> <span class="dv">12</span>)<span class="sc">+</span></span>
+<span id="cb2-16"><a href="c3.html#cb2-16" tabindex="-1"></a>  <span class="fu">theme</span>(<span class="at">aspect.ratio =</span> <span class="dv">1</span>)<span class="sc">+</span></span>
+<span id="cb2-17"><a href="c3.html#cb2-17" tabindex="-1"></a>  <span class="fu">facet_rep_grid</span>(theta <span class="sc">~</span> mu,</span>
+<span id="cb2-18"><a href="c3.html#cb2-18" tabindex="-1"></a>                 <span class="at">labeller =</span> label_parsed,</span>
+<span id="cb2-19"><a href="c3.html#cb2-19" tabindex="-1"></a>                 <span class="at">scales =</span> <span class="st">&quot;free_x&quot;</span>)</span></code></pre></div>
+<div class="figure" style="text-align: center"><span style="display:block;" id="fig:ex-bb"></span>
+<img src="GLMM_nyumon_files/figure-html/ex-bb-1.png" alt="様々なベータ二項分布" width="672" />
+<p class="caption">
+図2.8: 様々なベータ二項分布
+</p>
+</div>
+</div>
+<div id="ポワソン分布" class="section level3 hasAnchor" number="2.5.4">
+<h3><span class="header-section-number">2.5.4</span> ポワソン分布<a href="c3.html#ポワソン分布" class="anchor-section" aria-label="Anchor link to header"></a></h3>
+<p>ポワソン分布は、「ある一定の時間にある事象が発生する回数(<span class="math inline">\(x\)</span>)を表す確率分布」です。たとえば、1年間に自動車事故が発生する回数はポワソン分布に従うとされます。二項分布と違い、ポワソン分布は上限のない整数をとる変数に対して用いることができます。</p>
+<p>ある事象が起きる平均回数を<span class="math inline">\(\lambda\)</span>とするとき、その事象が<span class="math inline">\(x\)</span>回生じる確率(<span class="math inline">\(P(x)\)</span>)は以下のようになります。これがポワソン分布の確率質量関数です。</p>
+<p><span class="math display">\[
+P(x) = \frac{\lambda^x}{x!}e^{-\lambda} \quad (x \geq 0)
+\]</span></p>
+<p>ポワソン分布は期待値も分散も<span class="math inline">\(\lambda\)</span>になります。様々なポワソン分布を書いてみると以下のようになります(図<a href="c3.html#fig:ex-pois">2.9</a>)。</p>
+<div class="figure" style="text-align: center"><span style="display:block;" id="fig:ex-pois"></span>
+<img src="GLMM_nyumon_files/figure-html/ex-pois-1.png" alt="様々なポワソン分布" width="672" />
+<p class="caption">
+図2.9: 様々なポワソン分布
+</p>
+</div>
+</div>
+<div id="負の二項分布" class="section level3 hasAnchor" number="2.5.5">
+<h3><span class="header-section-number">2.5.5</span> 負の二項分布<a href="c3.html#負の二項分布" class="anchor-section" aria-label="Anchor link to header"></a></h3>
+<p>負の二項分布は、ポワソン分布のパラメータ<span class="math inline">\(\lambda\)</span>が共通の<strong>ガンマ分布</strong>から得られるとする混合分布です。先述のようにポワソン分布は期待値も分散も同じ分布ですが、こうすることにより負の二項分布はポワソン分布よりも裾の広い分布をとることができるので、よりばらつきの大きいデータに対して用いることができます。</p>
+<p>負の二項分布の確率質量関数はガンマ分布のパラメータ<span class="math inline">\(\alpha\)</span>と<span class="math inline">\(\beta\)</span>を用いて以下のように書けます。<span class="math inline">\(\alpha \rightarrow \infty\)</span>のとき、負の二項分布はポワソン分布になります。</p>
+<p><span class="math display">\[
+P(x) = \frac{\Gamma(x + \alpha)}{\Gamma(\alpha)x!} \Bigl(\frac{\beta}{1 + \beta}\Bigl)^n\Bigl(\frac{1}{1 + \beta}\Bigl)^x
+\]</span></p>
+<p>分布の期待値と分散は以下のようになります。RでGLMやGLMMを実行するときには、通常平均<span class="math inline">\(\mu\)</span>と<span class="math inline">\(\alpha\)</span>を用いてモデル化され、推定が行われることが多いです。そのとき、<span class="math inline">\(\alpha\)</span>は分散パラメータ<span class="math inline">\(\phi\)</span>と呼ばれます。</p>
+<ul>
+<li>期待値: <span class="math inline">\(\mu = \alpha/\beta\)</span><br />
+</li>
+<li>分散: <span class="math inline">\(\mu + \mu^2/\alpha\)</span></li>
+</ul>
+<span class="math inline">\(\mu\)</span>と<span class="math inline">\(\alpha\)</span>の値を変えたときの負の二項分布を描いたのが図(fog:ex-nb)です。 ポワソン分布よりも様々な形をとることができることが分かります。<br />
+
+<div class="figure" style="text-align: center"><span style="display:block;" id="fig:ex-nb"></span>
+<img src="GLMM_nyumon_files/figure-html/ex-nb-1.png" alt="様々な負の二項分布" width="672" />
+<p class="caption">
+図2.10: 様々な負の二項分布
+</p>
+</div>
+
+</div>
+</div>
+</div>
+            </section>
+
+          </div>
+        </div>
+      </div>
+<a href="c1.html" class="navigation navigation-prev " aria-label="Previous page"><i class="fa fa-angle-left"></i></a>
+<a href="実行環境.html" class="navigation navigation-next " aria-label="Next page"><i class="fa fa-angle-right"></i></a>
+    </div>
+  </div>
+<script src="libs/gitbook-2.6.7/js/app.min.js"></script>
+<script src="libs/gitbook-2.6.7/js/clipboard.min.js"></script>
+<script src="libs/gitbook-2.6.7/js/plugin-search.js"></script>
+<script src="libs/gitbook-2.6.7/js/plugin-sharing.js"></script>
+<script src="libs/gitbook-2.6.7/js/plugin-fontsettings.js"></script>
+<script src="libs/gitbook-2.6.7/js/plugin-bookdown.js"></script>
+<script src="libs/gitbook-2.6.7/js/jquery.highlight.js"></script>
+<script src="libs/gitbook-2.6.7/js/plugin-clipboard.js"></script>
+<script>
+gitbook.require(["gitbook"], function(gitbook) {
+gitbook.start({
+"sharing": {
+"github": false,
+"facebook": true,
+"twitter": true,
+"linkedin": false,
+"weibo": false,
+"instapaper": false,
+"vk": false,
+"whatsapp": false,
+"all": ["facebook", "twitter", "linkedin", "weibo", "instapaper"]
+},
+"fontsettings": {
+"theme": "white",
+"family": "sans",
+"size": 2
+},
+"edit": {
+"link": null,
+"text": null
+},
+"history": {
+"link": null,
+"text": null
+},
+"view": {
+"link": null,
+"text": null
+},
+"download": null,
+"search": {
+"engine": "fuse",
+"options": null
+},
+"toc": {
+"collapse": "subsection"
+}
+});
+});
+</script>
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    var src = "true";
+    if (src === "" || src === "true") src = "https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.9/latest.js?config=TeX-MML-AM_CHTML";
+    if (location.protocol !== "file:")
+      if (/^https?:/.test(src))
+        src = src.replace(/^https?:/, '');
+    script.src = src;
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+</body>
+
+</html>

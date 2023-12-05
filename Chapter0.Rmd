@@ -1,22 +1,14 @@
 # 0.  パッケージの読み込み {-}  
+分析のため、以下のパッケージを読み込みます。本稿では、基本的にGLMにはRにもともと実装されている`glm()`関数を、GLMMには`glmmTMB`パッケージ[@Mollie2017]を用います。    
 
 ```{r}
-## ネットワーク分析関連
-library(tidygraph)
-library(ggraph)
-library(asnipe)  
-library(sna)
-library(ANTs)
-library(igraph)
-library(clValid)
-library(assortnet)
-library(hwig)
 ## データハンドリング
 library(tidyverse)
 library(easystats)
 library(data.table)
 ## グラフや表関連
 library(patchwork)
+library(lemon)
 library(DT)
 library(knitr)
 library(kableExtra)
@@ -28,6 +20,15 @@ library(ggsci)
 ## フォント関連
 library(extrafont)
 require(systemfonts)
+## モデリング  
+library(glmmTMB)
+library(rethinking)
+library(brms)
+library(DHARMa)
+library(DHARMa.helpers)
+library(rstan)
+rstan_options(auto_write = TRUE) 
+options(mc.cores = parallel::detectCores()) 
 ```
 
 

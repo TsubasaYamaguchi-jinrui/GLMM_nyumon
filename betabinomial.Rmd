@@ -1,0 +1,293 @@
+# ベータ二項分布モデル  
+## 二項分布とは  
+二項分布は、「結果が2通り(例えば、成功/失敗)である試行（**ベルヌーイ試行**と呼ばれる）を独立に$n$回行ったときの成功回数の分布を表した確率分布」である。例えば、 コインを10回振ったときに表が出る回数は二項分布に従う。  
+
+一方の結果が生じる確率を$p$とするとき、$n$回中$x$回その結果が生じる確率$P(x|n,p)$は以下のように書ける(例. コインの表が出る確率が$p$のとき、$n$回中$x$回表が出る確率)。  
+
+$$
+P(x|n,p) = _n C _x p^x(1-p)^{n-x} \quad (x \geq 0)
+$$
+
+実際に表が出る確率が0.4のコインを10回ふったときの確率分布は以下のようになる。  
+
+```{r, fig.dim = c(4,4)}
+## xは0から10までとりうる
+x <- seq(0,10,by=1)
+
+## それぞれのxの値を取りうる確率  
+p_x <- dbinom(x, size = 10, prob = 0.4)
+
+## 作図  
+data.frame(x = x,
+           p_x = p_x) %>% 
+  ggplot(aes(x = x, y = p_x))+
+  geom_col()+
+  theme_bw(base_size = 12)+
+  theme(aspect.ratio = 1,
+        axis.title.y = element_text(angle=0,
+                                    vjust = 0.5))+
+  labs(y = "x\n回\n表\nが\n出\nる\n確\n率")
+```
+
+先ほどの式からわかるように、二項分布の形は$p$と$n$にという二つの値によって決まる。このように確率分布を特徴づける値のことを**母数(パラメータ)**という。GLMなどのモデリングでは、分布を決めるために必要なパラメータを実際のデータから推定することが目的になる。例えば、応答変数が二項分布に従うモデルを考える場合、試行数$n$は既知なので、データが得られる確率が最も高くなるように$p$を推定することがゴールとなる。    
+
+さて、二項分布の期待値(平均)と分散は$p$と$n$によって以下のように定まる。ここで重要なのは、**二項分布は**$n$と$p$**が定まれば期待値も分散も決まってしまう**ということである。   
+
+- 期待値: $np$  
+- 分散: $np(1-p)$  
+
+## ベータ二項分布  
+しかし、実際にGLMMなどのモデリングを行ってパラメータ$p$が推定されたとき、実際のデータの分散がそのパラメータから期待される$np(1-p)$よりも大きくなってしまうことがある。これを**過分散**という。  
+
+二項分布モデルを用いたときに生じる過分散に対処する方法の1つが**ベータ二項分布**モデルを用いることである[@Harrison2015]。  
+
+### ベータ分布とは  
+ベータ二項分布は、二項分布の期待値(平均)$p$が共通の**ベータ分布**から得られると仮定する**混合分布**である。ベータ分布は、期待値$\bar{p}$とshape parameterの$\theta$の2つのパラメータで定義される。$\theta$は分布の広さに関するパラメータで、$\theta$が2のときに一様分布になる。$\theta$が2以上になると分布は狭くなり、$\theta$が2以下になると0と1に分布が集中していく。なお、通常ベータ分布は$\alpha$と$\beta$を用いて、 
+<br />  
+
+$$
+Beta(x|\alpha, \beta) = \frac{x^{\alpha-1} (1-x)^{\beta-1}}{B(\alpha, \beta)}
+$$
+
+で表される(覚えなくてよい)。なお、$\bar{p} = \frac{\alpha}{\alpha + \beta}$、$\theta = \alpha + \beta$である。また、$B()$はベータ関数である。  
+
+
+様々なベータ分布を書いてみると以下のようになる。  
+
+```{r}
+## p,Θからα、βを得る関数。
+transbeta <- function(p, theta) {
+  if (p <= 0 | p >= 1) stop("must have 0 < p < 1")
+  if (theta <= 0) stop("theta must be > 0")
+  a <- p * theta
+  b <- (1.0 - p) * theta
+  return(list(a = a, b = b))
+}
+```
+
+```{r beta, fig.height = 5, fig.cap = "様々なパラメータのベータ分布"}
+library(rethinking)
+
+crossing(pbar = c(0.25, 0.5, 0.75),
+         theta = c(0.5,2,5,15,30)) %>% 
+   tidyr::expand(nesting(pbar,theta), x = seq(0,1,length.out=50)) %>% 
+   mutate(density = dbeta2(x, pbar, theta),
+          mu = str_c("pbar == ", pbar %>% str_remove(.,"0")),
+          kappa = factor(str_c("theta == ", theta),
+                         levels = c("theta == 30", 
+                                    "theta == 15", "theta == 5", "theta == 2", "theta == 0.5")))%>% 
+   ggplot(aes( x=x, y = density))+
+   geom_area(fill = "navy")+
+   scale_x_continuous("probability space", 
+                     breaks = c(0, .5, 1), 
+                     labels = c("0", ".5", "1")) +
+  scale_y_continuous(NULL, labels = NULL) +
+  theme(axis.ticks.y = element_blank()) +
+facet_grid(kappa ~ mu, labeller = label_parsed)
+```
+  
+### ベータ二項分布モデル  
+ベータ二項分布は二項分布のパラメータ$p$が期待値$\bar{p}$、shape parameter$\theta$のベータ分布から得られるとするものである。このとき、ベータ二項分布の期待値と分散は以下のようになる。パラメータ$\theta$により二項分布よりも幅広い分散をとることができるため、過分散にうまく対処することができる。なお、$\theta \rightarrow \infty$のときベータ二項分布は二項分布になる。      
+
+- 期待値: $n\bar{p}$  
+- 分散: $\bar{p}(1-\bar{p})(n(\theta+n)/(\theta+1))$    
+
+$n = 10$のときの期待値4の二項分布と期待値4で様々な$\theta$をとるベータ二項分布を比較したのが以下の図である。ベータ二項分布では二項分布よりも柔軟な分布をとりうることが分かる。$\theta$が大きくなるほど二項分布に近づく。    
+```{r, fig.height = 5, fig.cap = "二項分布と様々なθの値をとるベータ二項分布(ともに期待値4で試行回数は10)"}
+tidyr::crossing(pbar = 0.4,
+         theta = c(0.1, 0.5,2,5,15,10, 30, "binomial")) %>% 
+   tidyr::expand(nesting(pbar,theta), x = seq(0,10,by =1)) %>% 
+   mutate(density = ifelse(theta != "binomial",
+                           dbetabinom(x, prob = pbar, theta = as.numeric(theta), size = 10),
+                           dbinom(x, prob = pbar, size = 10)),
+          kappa = ifelse(theta != "binomial",
+                         str_c("theta == ", theta), theta)) %>% 
+   mutate(kappa = fct_relevel(kappa, c("binomial", "theta == 30","theta == 15", 
+                                    "theta == 10","theta == 5", "theta == 2", "theta == 0.5",
+                                    "theta == 0.1"))) %>% 
+   ggplot(aes(x=x, y = density))+
+   geom_col(fill = "navy")+
+   scale_x_continuous("x", 
+                     breaks = seq(0,10,1)) +
+   scale_y_continuous(breaks = seq(0,0.5,0.1))+
+   labs(y = "x回成功する確率")+
+   theme(axis.ticks.y = element_blank(),
+        aspect.ratio = 1) +
+   facet_rep_wrap(~kappa, labeller = label_parsed,
+                 ncol = 4,
+                 repeat.tick.labels = TRUE)
+```
+
+ベータ二項分布を用いたGLMMのモデル式は以下のようになる。なお、$\beta$は回帰係数、$\alpha$は切片、$x$が説明変数、$y$が応答変数、$n$が試行回数を表す。  
+
+$$
+\begin{aligned}
+  y_i &\sim Binomial(n_i, p_i)\\
+  p_{i} &\sim Beta(\bar{p_{i}}, \theta)\\
+  logit(\bar{p_{i}}) & =\alpha + \beta_1 \times x_{1i} + \beta_2 + x_{2i} + \cdots \\
+\end{aligned}
+$$
+
+glmmTMBパッケージでは、結果としてパラメータ$\theta$が推定されている(モデル⓷でdispersion parameterとして推定されている値)。  
+
+## 
+
+例えば、ニホンザルを対象とした研究で            
+
+シミュレーションによって架空のデータを作成する。  
+```{r}
+set.seed(1234)
+N <- 200
+theta = 7.8
+
+data <- data.frame(x1 = rnorm(N, 15, 3.5),
+                   x2 = rbinom(N, 1, prob = 0.5),
+                   sum = rpois(N,100)) %>% 
+  mutate(y = rbetabinom(n = N ,size = sum, prob = exp(-5.5 + 0.31*x1 + 1.4*x2)/(1 + exp(-5.5 + 0.31*x1 + 1.4*x2)),
+                        theta = theta),
+         id = 1:n())
+```
+
+
+```{r}
+data %>% 
+  mutate(x2 = as.factor(x2)) %>% 
+  ggplot(aes(x = x1, y = y/sum))+
+  geom_point(aes(color = x2),
+             shape = 1,
+             size = 2)+
+  theme_bw(base_size = 12)+
+  theme(aspect.ratio = 0.8)+
+  scale_color_nejm()
+```
+
+## 二項分布モデル  
+```{r}
+m_binom <- glmmTMB(cbind(y, sum - y) ~ x1 + x2,
+                   data = data,
+                   family = "binomial")
+```
+
+```{r}
+plot(simulateResiduals(m_binom))
+```
+
+```{r}
+model_parameters(m_binom)
+```
+
+
+```{r}
+tidyr::crossing(x1 = seq(5,26,0.1),
+                x2 = c(0,1),
+                N = 1:10000,
+                sum = 100) %>% 
+  mutate(prob = inv_logit_scaled(coef(m_binom)[[1]] + coef(m_binom)[[2]]*x1 + coef(m_binom)[[3]]*x2)) %>% 
+  mutate(pred = rbinom(4220000, sum, prob)) %>% 
+  group_by(x1, x2) %>% 
+  summarise(predicted = mean(pred)/100,
+            conf.low = quantile(pred, 0.025)/100,
+            conf.high = quantile(pred, 0.975)/100) %>% 
+  mutate(x2 = as.factor(x2)) %>% 
+  ggplot(aes(x = x1))+
+  geom_ribbon(aes(y = predicted,
+                  ymin = conf.low,
+                  ymax = conf.high,
+                  fill = x2),
+              alpha = 0.3) +
+  geom_point(aes(y = y/sum, color = x2),
+             size = 2,shape = 1,
+             data = data %>%mutate(x2 = as.factor(x2)))+
+  scale_color_nejm()+
+  scale_fill_nejm()+
+  theme_bw(base_size = 16)+
+  theme(aspect.ratio = 0.8)
+```
+
+
+```{r}
+m_betabinom <- glmmTMB(cbind(y, sum - y) ~ x1 + x2,
+                   data = data,
+                   family = "betabinomial")
+```
+
+```{r}
+plot(simulateResiduals(m_betabinom))
+```
+
+```{r}
+model_parameters(m_betabinom)
+```
+
+```{r}
+tidyr::crossing(x1 = seq(5,26,0.1),
+                x2 = c(0,1),
+                N = 1:10000,
+                sum = 100) %>% 
+  mutate(prob = inv_logit_scaled(fixef(m_betabinom)[[1]][[1]] + 
+                                   fixef(m_betabinom)[[1]][[2]]*x1 + fixef(m_betabinom)[[1]][[3]]*x2)) %>% 
+  mutate(pred = rbetabinom(n = 4220000,size = sum,prob =  prob,
+                           theta = sigma(m_betabinom))) %>% 
+  group_by(x1, x2) %>% 
+  summarise(predicted = mean(pred)/100,
+            conf.low = quantile(pred, 0.025)/100,
+            conf.high = quantile(pred, 0.975)/100) %>% 
+  mutate(x2 = as.factor(x2)) %>% 
+  ggplot(aes(x = x1))+
+  geom_ribbon(aes(y = predicted,
+                  ymin = conf.low,
+                  ymax = conf.high,
+                  fill = x2),
+              alpha = 0.3) +
+  geom_point(aes(y = y/sum, color = x2),
+             size = 2,shape = 1,
+             data = data %>%mutate(x2 = as.factor(x2)))+
+  scale_color_nejm()+
+  scale_fill_nejm()+
+  theme_bw(base_size = 16)+
+  theme(aspect.ratio = 0.8)
+```
+
+```{r}
+m_binom_random <- glmmTMB(cbind(y, sum - y) ~ x1 + x2 + (1|id),
+                          data = data,
+                          family = "binomial")
+```
+
+```{r}
+plot(simulateResiduals(m_binom_random))
+```
+
+```{r}
+model_parameters(m_binom_random)
+```
+
+
+```{r}
+tidyr::crossing(x1 = seq(5,26,0.1),
+                x2 = c(0,1),
+                N = 1:10000,
+                sum = 100) %>% 
+  mutate(re = rnorm(4220000, mean = 0, sd = 0.9613)) %>% 
+  mutate(prob = inv_logit_scaled(coef(m_binom)[[1]] + coef(m_binom)[[2]]*x1 + coef(m_binom)[[3]]*x2 + re)) %>% 
+  mutate(pred = rbinom(4220000, sum, prob)) %>% 
+  group_by(x1, x2) %>% 
+  summarise(predicted = mean(pred)/100,
+            conf.low = quantile(pred, 0.025)/100,
+            conf.high = quantile(pred, 0.975)/100) %>% 
+  mutate(x2 = as.factor(x2)) %>% 
+  ggplot(aes(x = x1))+
+  geom_ribbon(aes(y = predicted,
+                  ymin = conf.low,
+                  ymax = conf.high,
+                  fill = x2),
+              alpha = 0.3) +
+  geom_point(aes(y = y/sum, color = x2),
+             size = 2,shape = 1,
+             data = data %>%mutate(x2 = as.factor(x2)))+
+  scale_color_nejm()+
+  scale_fill_nejm()+
+  theme_bw(base_size = 16)+
+  theme(aspect.ratio = 0.8)
+```
+
